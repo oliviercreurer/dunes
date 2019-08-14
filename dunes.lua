@@ -35,12 +35,8 @@ local metronome = 1
 local KEYDOWN1 = 0
 local KEYDOWN2 = 0
 
--- local scale = {30/100, 36/100, 40/100, 45/100, 54/100, 60/100}
 local pattern = {}
 local rests = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
-
--- local cut = 1000
--- local amp = 0.6
 
 local octave = 0
 -- local transpose = 0
@@ -88,8 +84,6 @@ function panrnd() pan = (math.random(2,8)/10) end
 function delaydec() delayRate = util.clamp(delayRate * 2,0.5,2) end
 function delayinc() delayRate = util.clamp(delayRate / 2,0.5,2) end
 
---function panrnd() pan = util.clamp(pan + 0.05, 0.3,0.7) end
-
 act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,posFirst,posLast,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,delaydec,delayinc} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
 COMMANDS = 21
 label = {"<", ">", "-", "+", "P", "N", "?", "[", "]", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3"}
@@ -132,7 +126,6 @@ end
 
 function newPattern()
   for i=1,16 do
-    -- table.insert(pattern,i,scale[math.random(#scale)])
     table.insert(pattern,i,(notes[scaleGroup][math.random(#notes[scaleGroup])] + offset)) -- (#notes[scaleGroup])
   end
 end
@@ -140,7 +133,6 @@ end
 function drawMenu()
   for i=1,#pages do
     screen.move(i*4+108,8)
-    --screen.pixel(i*4-2,7)
     screen.line_rel(1,0)
     if i == pageNum then
       screen.level(15)
@@ -159,18 +151,11 @@ function drawEdit()
     screen.level((i == edit) and 15 or 1)
     screen.move(i*8-8+1,60)
     screen.text(label[step[i]])
-    -- if i == position then
-    --   screen.move(i*8-8, 58)
-    --   screen.line_rel(4,0)
-    --   screen.stroke()
-    -- end
   end
   drawSeq()
 end
 
 function drawHelp()
-  -- screen.level(15)
-  -- screen.move(1,20)
     if pageNum == 2 then
       screen.level(15)
       screen.move(1,20)
@@ -256,15 +241,6 @@ function drawSeq()
   end
 end
 
--- function drawTranspose()
---   if KEYDOWN2 == 1 then
---     screen.level(10)
---     screen.move(1,20)
---     screen.text("TRANSPOSE: "..transpose)
---   end
--- end
-
-
 function redraw()
   screen.clear()
   drawMenu()
@@ -287,9 +263,6 @@ function enc(n,d)
   elseif n == 2 then
     if KEYDOWN2 == 0 then
       edit = util.clamp(edit + d, 1, STEPS)
-    -- elseif KEYDOWN2 == 1 and hold_time > 1 then
-    --   transpose = util.clamp(transpose + d, -12,12)
-    --   redraw()
     end
   elseif n == 3 then
     step[edit] = util.clamp(step[edit]+d, 1, COMMANDS)
