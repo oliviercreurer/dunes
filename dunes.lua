@@ -4,7 +4,7 @@
 --  V 1.0 @olivier
 --  llllllll.co/t/?  
 --
---  ↓↓↓
+--  Navigation:
 --
 --  E1: Navigate pages
 --  E2: Navigate to step
