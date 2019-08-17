@@ -34,5 +34,5 @@ __Engine:__
 __Softcut:__
 
 - `1` : Random pan position (0.2 - 0.8)
-- `2` : Multiple rate
+- `2` : Multiply rate
 - `3` : Divide rate
