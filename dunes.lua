@@ -1,5 +1,10 @@
 --
 --  DUNES
+--  Function sequencer
+--  V 1.0 @olivier
+--  llllllll.co/t/?  
+--
+--  ↓↓↓
 --
 --  E1: Navigate pages
 --  E2: Navigate to step
