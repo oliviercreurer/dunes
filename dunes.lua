@@ -1,10 +1,11 @@
 --
---  DUNES
---  Function sequencer
---  V 1.0 @olivier
---  llllllll.co/t/?  
 --
---  Navigation:
+--  DUNES (v1.0)
+--  Function sequencer
+--  @olivier
+--  https://llllllll.co/t/?  
+--
+--  
 --
 --  E1: Navigate pages
 --  E2: Navigate to step
@@ -86,13 +87,15 @@ function verbinc() verb = util.clamp(verb + 0.05, 0.05, 0.5) end
 
 --SOFTCUT COMMANDS
 function panrnd() pan = (math.random(2,8)/10) end
-function delaydec() delayRate = util.clamp(delayRate * 2,0.5,2) end
-function delayinc() delayRate = util.clamp(delayRate / 2,0.5,2) end
+function rateMforward() delayRate = util.clamp(delayRate * 2,0.5,2) end
+function rateMreverse() delayRate = util.clamp(delayRate * 2,-0.5,-2) end
+function rateDforward() delayRate = util.clamp(delayRate / 2,0.5,2) end
+function rateDreverse() delayRate = util.clamp(delayRate / 2,-0.5,-2) end
 
-act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,posFirst,posLast,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,delaydec,delayinc} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
-COMMANDS = 21
-label = {"<", ">", "-", "+", "P", "N", "?", "[", "]", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3"}
-description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "First step", "Last step", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan", "Rate -", "Rate +"}
+act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,posFirst,posLast,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
+COMMANDS = 23
+label = {"<", ">", "-", "+", "P", "N", "?", "[", "]", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
+description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "First step", "Last step", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
 
 function init()
   params:add_separator()
@@ -126,6 +129,7 @@ function count()
   engine.reverbMix(verb)
   softcut.pan(1, pan)
   softcut.rate(1,delayRate)
+  -- softcut.position(1,1)
   redraw()
 end
 
@@ -214,13 +218,13 @@ function drawHelp()
     elseif pageNum == 4 then
       screen.level(15)
       screen.move(1,20)
-      for i=19,21 do
+      for i=19,23 do
         screen.move(1,(i-18)*9+15)
         screen.text(label[i])
       end
       screen.move(10,20)
       screen.level(4)
-      for i=19,21 do
+      for i=19,23 do
         screen.move(10,(i-18)*9+15)
         screen.text(description[i])
       end
@@ -316,6 +320,7 @@ function engineReset()
   octave = 0
   delayRate = 1
   pan = 0.5
+  softcut.rec(1,1)
   softcut.buffer_clear_channel(1)
 end
 
