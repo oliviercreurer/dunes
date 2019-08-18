@@ -3,7 +3,7 @@
 --  DUNES (v1.0)
 --  Function sequencer
 --  @olivier
---  https://llllllll.co/t/?  
+--  https://llllllll.co/t/dunes/24790 
 --
 --  
 --
