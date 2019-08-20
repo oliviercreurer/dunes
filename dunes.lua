@@ -41,6 +41,7 @@ local step = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 local scaleGroup = 1
 local noteSel = 1
 local metronome = 1
+local direction = 0
 
 local KEYDOWN1 = 0
 local KEYDOWN2 = 0
@@ -83,8 +84,8 @@ function metroinc() counter.time = util.clamp(counter.time / 2, 0.125, 1) end
 function nPattern() newPattern() end
 function nNote() pattern[position] = notes[scaleGroup][math.random(#notes[scaleGroup])] + offset end
 function posRand() position = math.random(STEPS) end
-function posFirst() position = 1 end
-function posLast() position = 16 end
+function dirForward() direction = 0 end
+function dirReverse() direction = 1 end
 function rest() end
 
 -- ENGINE COMMANDS
@@ -104,10 +105,10 @@ function rateMreverse() delayRate = util.clamp(delayRate * 2,-0.5,-2) end
 function rateDforward() delayRate = util.clamp(delayRate / 2,0.5,2) end
 function rateDreverse() delayRate = util.clamp(delayRate / 2,-0.5,-2) end
 
-act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,posFirst,posLast,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
+act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,dirForward,dirReverse,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
 COMMANDS = 23
-label = {"<", ">", "-", "+", "P", "N", "?", "[", "]", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
-description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "First step", "Last step", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
+label = {"<", ">", "-", "+", "P", "N", "?", "}", "{", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
+description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "Forward", "Reverse", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
 
 function init()
   params:add_option("output", "output", output_options, 1)
@@ -126,7 +127,11 @@ end
 
 function count()
   all_notes_off()
-  position = (position % STEPS) + 1
+  if direction == 0 then
+    position = (position % STEPS) + 1
+  else 
+    position = ((position + 14) % STEPS) + 1
+  end
   act[step[position]]()
   if act[step[position]] ~= act[10] then
     rests[position-1] = 0
