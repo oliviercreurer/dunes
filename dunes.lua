@@ -21,12 +21,16 @@ engine.name = "Passersby"
 Passersby = include "passersby/lib/passersby_engine"
 
 hs = include('lib/dunes_hs')
-hs.init()
+
+local midi = midi.connect()
+local midi_output_channel = 1
 
 local ControlSpec = require "controlspec"
 local Formatters = require "formatters"
 
 local pages = {"EDIT", "COMMANDS/SEQUENCE", "COMMANDS/ENGINE", "COMMANDS/SOFTCUT"}
+local output_options = {"audio", "audio + midi", "midi"}
+local active_notes = {}
 
 local baseFreq = 440
 local position = 1
@@ -60,6 +64,14 @@ local speedL = 1
 local pan = 0.5
 local delayRate = 1
 
+local function all_notes_off()
+  if (params:get("output") == 2 or params:get("output") == 3) then
+    for _, a in pairs(active_notes) do
+      midi:note_off(a, nil, midi_out_channel)
+    end
+  end
+  active_notes = {}
+end
 
 -- COMMANDS
 
@@ -98,6 +110,9 @@ label = {"<", ">", "-", "+", "P", "N", "?", "[", "]", "M", "d", "D", "s", "S", "
 description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "First step", "Last step", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
 
 function init()
+  params:add_option("output", "output", output_options, 1)
+  params:set_action("output", function() all_notes_off() end)
+  hs.init()
   params:add_separator()
   params:add_option("scale", "scale", names, 1)
   params:set_action("scale", function(x) scaleGroup = x end)
@@ -110,11 +125,21 @@ function init()
 end
 
 function count()
+  all_notes_off()
   position = (position % STEPS) + 1
   act[step[position]]()
   if act[step[position]] ~= act[10] then
     rests[position-1] = 0
-    engine.noteOn(1,(midi_to_hz(pattern[position] + offset + octave)),1)
+    local note_num = pattern[position] + offset + octave
+    -- engine output
+    if params:get("output") == 1 or params:get("output") == 2 then
+      engine.noteOn(1,(midi_to_hz(note_num)),1)
+    end
+    -- midi output
+    if params:get("output") == 2 or params:get("output") == 3 then
+      midi:note_on(note_num, 100, 1)
+      table.insert(active_notes, note_num)
+    end
   else
     rests[position-1] = 1
   end
