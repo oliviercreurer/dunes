@@ -15,8 +15,8 @@ __Sequence:__
 - `P` : New pattern
 - `N` : New note (at step)
 - `?` : Jump to random step
-- `[` : Jump to first step
-- `]` : Jump to second step
+- `}` : Forward direction
+- `{` : Reverse direction
 - `M` : Add rest (at step)
 - `d` : 
 
