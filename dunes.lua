@@ -1,6 +1,6 @@
 --
 --
---  DUNES (v1.0)
+--  DUNES (v1.1)
 --  Function sequencer
 --  @olivier
 --  https://llllllll.co/t/dunes/24790 
