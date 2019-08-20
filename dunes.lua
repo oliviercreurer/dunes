@@ -29,7 +29,7 @@ local ControlSpec = require "controlspec"
 local Formatters = require "formatters"
 
 local pages = {"EDIT", "COMMANDS/SEQUENCE", "COMMANDS/ENGINE", "COMMANDS/SOFTCUT"}
-local send_options = {"audio", "audio + midi", "midi"}
+local output_options = {"audio", "audio + midi", "midi"}
 local active_notes = {}
 
 local baseFreq = 440
@@ -64,16 +64,14 @@ local speedL = 1
 local pan = 0.5
 local delayRate = 1
 
-
 local function all_notes_off()
-  if (params:get("send") == 2 or params:get("send") == 3) then
+  if (params:get("output") == 2 or params:get("output") == 3) then
     for _, a in pairs(active_notes) do
       midi:note_off(a, nil, midi_out_channel)
     end
   end
   active_notes = {}
 end
-
 
 -- COMMANDS
 
@@ -112,8 +110,8 @@ label = {"<", ">", "-", "+", "P", "N", "?", "[", "]", "M", "d", "D", "s", "S", "
 description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "First step", "Last step", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
 
 function init()
-  params:add_option("send", "send", send_options, 1)
-  params:set_action("send", function() all_notes_off() end)
+  params:add_option("output", "output", output_options, 1)
+  params:set_action("output", function() all_notes_off() end)
   hs.init()
   params:add_separator()
   params:add_option("scale", "scale", names, 1)
@@ -134,11 +132,11 @@ function count()
     rests[position-1] = 0
     local note_num = pattern[position] + offset + octave
     -- engine output
-    if params:get("send") == 1 or params:get("send") == 2 then
+    if params:get("output") == 1 or params:get("output") == 2 then
       engine.noteOn(1,(midi_to_hz(note_num)),1)
     end
     -- midi output
-    if params:get("send") == 2 or params:get("send") == 3 then
+    if params:get("output") == 2 or params:get("output") == 3 then
       midi:note_on(note_num, 100, 1)
       table.insert(active_notes, note_num)
     end
