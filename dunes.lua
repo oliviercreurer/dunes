@@ -116,6 +116,7 @@ function rateDreverse() delayRate = util.clamp(delayRate / 2,-0.5,-2) end
 
 local act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,dirForward,dirReverse,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
 local COMMANDS = 23
+local NOT_FOUND_ACTION = 7 -- "?" Random note
 -- Labels for display
 local label = {"<", ">", "-", "+", "P", "N", "?", "}", "{", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
 -- Labels for filename generation. Must be file safe chars!
@@ -206,6 +207,28 @@ function seq_save(fn)
   print("writing sequence: " .. seq)
   file:write(seq .. '\n')
   file:close()
+end
+
+function seq_load(fn)
+  raw_seq={}
+  -- Wipe the current sequence
+  step = {}
+  
+  -- Load the new seq. as a string and split into a table of Chars
+  loading_seq = "ABCDEFG"
+  loading_seq:gsub(".",function(chr) table.insert(raw_seq,chr) end)
+  -- TODO pad with '<' to Sequence length
+
+  -- Find the index of each step of the sequence and insert into the current seqence
+  for k,v in pairs(raw_seq) do
+    action = NOT_FOUND_ACTION
+    for idx, rule in pairs(label) do
+      if v == rule then action = idx end
+    end
+    table.insert(step,action)
+end
+
+for x,y in pairs(steps) do print(y .. rules[y]) end  
 end
 
 function newPattern()
