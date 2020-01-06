@@ -26,6 +26,7 @@ include('lib/dunes_files')
 
 -- The following core libs are used to implement save and load features.
 local listselect = require 'listselect'
+local textentry = require 'textentry'
 local fileselect = require 'fileselect'
 
 local midi = midi.connect()
@@ -33,6 +34,8 @@ local midi_output_channel = 1
 
 local ControlSpec = require "controlspec"
 local Formatters = require "formatters"
+
+local DUNES_DATA_PATH = _path.data..'dunes/'
 
 local pages = {"EDIT", "COMMANDS/SEQUENCE", "COMMANDS/ENGINE", "COMMANDS/SOFTCUT"}
 local output_options = {"audio", "audio + midi", "midi"}
@@ -111,10 +114,13 @@ function rateMreverse() delayRate = util.clamp(delayRate * 2,-0.5,-2) end
 function rateDforward() delayRate = util.clamp(delayRate / 2,0.5,2) end
 function rateDreverse() delayRate = util.clamp(delayRate / 2,-0.5,-2) end
 
-act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,dirForward,dirReverse,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
-COMMANDS = 23
-label = {"<", ">", "-", "+", "P", "N", "?", "}", "{", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
-description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "Forward", "Reverse", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
+local act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,dirForward,dirReverse,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
+local COMMANDS = 23
+-- Labels for display
+local label = {"<", ">", "-", "+", "P", "N", "?", "}", "{", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
+-- Labels for filename generation. Must be file safe chars!
+local fn_label = {"o", "O", "-", "+", "P", "N", "Q", "E", "W", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
+local description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", "Rnd step", "Forward", "Reverse", "Rest", "Decay -", "Decay +", "Shape -", "Shape +", "Folds -", "Folds +", "Reverb -", "Reverb +", "Pan (rnd)", "Rate * (+)", "Rate * (-)", "Rate / (+)", "Rate / (-)"}
 
 function init()
   params:add_option("output", "output", output_options, 1)
@@ -124,9 +130,11 @@ function init()
   
   print('adding triggers')
   params:add_trigger('save_seq','<< Save Sequence')
-  params:set_action('save_seq', function(x) listselect.enter({'default',1,2,3,4,5,6,7,8,9},function(y) print('saving as '..y) end) end)
+  params:set_action('save_seq', function(x)  textentry.enter(function(new_fn) seq_save(new_fn) end, gen_seq_filename(),'Save sequence as ...') end)
+  
   params:add_trigger('load_seq','>> Load Sequence')
   params:set_action('load_seq', function(x) print('loading') end)
+  
   --params:add_trigger('save_pattern','< Save pattern')
   --params:add_trigger('load_pattern','> Load pattern')
   
@@ -182,6 +190,22 @@ function count()
   softcut.rate(1,delayRate)
   -- softcut.position(1,1)
   redraw()
+end
+
+function gen_seq_filename()
+  fn = ''
+  for k,v in pairs(step) do fn = fn .. fn_label[v] end
+  return fn
+end
+
+function seq_save(fn)
+  local file, err = io.open(DUNES_DATA_PATH..fn..'.seq', "w+")
+  if err then print('io err:'..err) return err end
+  seq = ''
+  for k,v in pairs(step) do seq = seq .. label[v] end
+  print("writing sequence: " .. seq)
+  file:write(seq .. '\n')
+  file:close()
 end
 
 function newPattern()
