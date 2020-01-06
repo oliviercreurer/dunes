@@ -22,6 +22,12 @@ Passersby = include "passersby/lib/passersby_engine"
 
 hs = include('lib/dunes_hs')
 
+include('lib/dunes_files')
+
+-- The following core libs are used to implement save and load features.
+local listselect = require 'listselect'
+local fileselect = require 'fileselect'
+
 local midi = midi.connect()
 local midi_output_channel = 1
 
@@ -113,11 +119,26 @@ description = {"Oct -", "Oct +", "Metro -", "Metro +", "New patt.", "New note", 
 function init()
   params:add_option("output", "output", output_options, 1)
   params:set_action("output", function() all_notes_off() end)
-  hs.init()
+  
   params:add_separator()
+  
+  print('adding triggers')
+  params:add_trigger('save_seq','<< Save Sequence')
+  params:set_action('save_seq', function(x) listselect.enter({'default',1,2,3,4,5,6,7,8,9},function(y) print('saving as '..y) end) end)
+  params:add_trigger('load_seq','>> Load Sequence')
+  params:set_action('load_seq', function(x) print('loading') end)
+  --params:add_trigger('save_pattern','< Save pattern')
+  --params:add_trigger('load_pattern','> Load pattern')
+  
+  hs.init()
+  
+  params:add_separator()
+  
   params:add_option("scale", "scale", names, 1)
   params:set_action("scale", function(x) scaleGroup = x end)
+ 
   params:add_separator()
+  
   Passersby.add_params()
   counter = metro.init(count, 0.25, -1)
   counter:start()
