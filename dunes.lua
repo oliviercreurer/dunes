@@ -22,8 +22,6 @@ Passersby = include "passersby/lib/passersby_engine"
 
 hs = include('lib/dunes_hs')
 
-include('lib/dunes_files')
-
 -- The following core libs are used to implement save and load features.
 local listselect = require 'listselect'
 local textentry = require 'textentry'
@@ -194,8 +192,12 @@ function count()
 end
 
 function gen_seq_filename()
+  vowels = {'a','e','i','o','u','y'}
   fn = ''
-  for k,v in pairs(step) do fn = fn .. fn_label[v] end
+  while fn=='' or util.file_exists(norns.state.data..fn..'.seq') do
+    for i=1,4 do fn = fn .. string.sub(description[step[math.random(16)]],0,1) .. vowels[math.random(#vowels)] end
+    -- TODO eventually someone could use all possible combos and go into a permenant loop...
+  end
   return fn
 end
 
