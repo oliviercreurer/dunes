@@ -134,7 +134,7 @@ function init()
   params:set_action('save_seq', function(x)  textentry.enter(function(new_fn) seq_save(new_fn) end, gen_seq_filename(),'Save sequence as ...') end)
   
   params:add_trigger('load_seq','>> Load Sequence')
-  params:set_action('load_seq', function(x) print('loading') end)
+  params:set_action('load_seq', function(x) fileselect.enter(norns.state.data, seq_load) end)
   
   --params:add_trigger('save_pattern','< Save pattern')
   --params:add_trigger('load_pattern','> Load pattern')
@@ -200,35 +200,47 @@ function gen_seq_filename()
 end
 
 function seq_save(fn)
-  local file, err = io.open(DUNES_DATA_PATH..fn..'.seq', "w+")
+  local file, err = io.open(norns.state.data..fn..'.seq', "w+")
   if err then print('io err:'..err) return err end
   seq = ''
   for k,v in pairs(step) do seq = seq .. label[v] end
   print("writing sequence: " .. seq)
-  file:write(seq .. '\n')
+  file:write('SEQ '..seq .. '\n')
   file:close()
 end
 
 function seq_load(fn)
-  raw_seq={}
-  -- Wipe the current sequence
-  step = {}
+  print("Loading sequnce file"..fn)
   
-  -- Load the new seq. as a string and split into a table of Chars
-  loading_seq = "ABCDEFG"
-  loading_seq:gsub(".",function(chr) table.insert(raw_seq,chr) end)
-  -- TODO pad with '<' to Sequence length
+  local file, err = io.open(fn, "r")
+  if err then print('io err:'..err) return err end
+  loading_line = file:read() -- only read first line.
+  file:close()
+  -- split into header and sequence and check header
+  seq_header, loading_seq = loading_line:match("(SEQ):(.*)")
+  
+  if seq_header ~= 'SEQ' then print("Error: Invalid sequence header "..(seq_header or 'nil')) return nil end
 
+  --make sure the Sequnce is not too long or short and pad with '<'
+  loading_seq = string.sub(loading_seq,0,STEPS)
+  loading_seq = loading_seq .. string.rep("<", STEPS-#loading_seq)
+  
+  -- and split into a table of Chars
+  raw_seq={}
+  loading_seq:gsub(".",function(chr) table.insert(raw_seq,chr) end)
+
+  new_step = {}
   -- Find the index of each step of the sequence and insert into the current seqence
   for k,v in pairs(raw_seq) do
-    action = NOT_FOUND_ACTION
-    for idx, rule in pairs(label) do
-      if v == rule then action = idx end
-    end
-    table.insert(step,action)
-end
-
-for x,y in pairs(steps) do print(y .. rules[y]) end  
+    action = tab.key(label,v) or NOT_FOUND_ACTION
+    table.insert(new_step,action)
+  end
+  -- replace current sequence with laoded sequence
+  if #new_step == STEPS then
+    step = new_step 
+  else
+    print("Error: Sequence was not the correct length after parsing.")
+  end
 end
 
 function newPattern()
