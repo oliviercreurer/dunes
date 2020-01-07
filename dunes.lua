@@ -192,7 +192,8 @@ function count()
 end
 
 function gen_seq_filename()
-  vowels = {'a','e','i','o','u','y'}
+  -- more vowel combos increases name variety
+  vowels = {'a','e','i','o','u','y','hi','ae','ou'}
   fn = ''
   while fn=='' or util.file_exists(norns.state.data..fn..'.seq') do
     for i=1,4 do fn = fn .. string.sub(description[step[math.random(16)]],0,1) .. vowels[math.random(#vowels)] end
