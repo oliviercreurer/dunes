@@ -23,7 +23,6 @@ Passersby = include "passersby/lib/passersby_engine"
 hs = include('lib/dunes_hs')
 
 -- The following core libs are used to implement save and load features.
-local listselect = require 'listselect'
 local textentry = require 'textentry'
 local fileselect = require 'fileselect'
 
