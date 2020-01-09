@@ -44,7 +44,7 @@ local position = 1
 local pageNum = 1
 local edit = 1
 local STEPS = 16
-local step = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+local cmd_sequence = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 local scaleGroup = 1
 local noteSel = 1
 local metronome = 1
@@ -53,7 +53,7 @@ local direction = 0
 local KEYDOWN1 = 0
 local KEYDOWN2 = 0
 
-local pattern = {}
+local note_pattern = {}
 local rests = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
 
 local octave = 0
@@ -89,7 +89,7 @@ function octinc() octave = util.clamp(octave + 12, -12, 12) end
 function metrodec() counter.time = util.clamp(counter.time * 2, 0.125, 1) end
 function metroinc() counter.time = util.clamp(counter.time / 2, 0.125, 1) end
 function nPattern() newPattern() end
-function nNote() pattern[position] = notes[scaleGroup][math.random(#notes[scaleGroup])] + offset end
+function nNote() note_pattern[position] = notes[scaleGroup][math.random(#notes[scaleGroup])] + offset end
 function posRand() position = math.random(STEPS) end
 function dirForward() direction = 0 end
 function dirReverse() direction = 1 end
@@ -112,8 +112,9 @@ function rateMreverse() delayRate = util.clamp(delayRate * 2,-0.5,-2) end
 function rateDforward() delayRate = util.clamp(delayRate / 2,0.5,2) end
 function rateDreverse() delayRate = util.clamp(delayRate / 2,-0.5,-2) end
 
-local act = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,dirForward,dirReverse,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
-local COMMANDS = 23
+local actions = {octdec,octinc,metrodec,metroinc,nPattern,nNote,posRand,dirForward,dirReverse,rest,decaydec,decayinc,wShapedec,wShapeinc,wFolddec,wFoldinc,verbdec,verbinc,panrnd,rateMforward,rateMreverse,rateDforward,rateDreverse} -- metrodec,metroinc,nPattern,cutinc,cutdec,posrand,release,newNote,addRest,removeRest,ampinc,ampdec,pw}
+local COMMANDS = #actions
+local REST_ACTION = 10
 local NOT_FOUND_ACTION = 7 -- "?" Random note
 -- Labels for display
 local label = {"<", ">", "-", "+", "P", "N", "?", "}", "{", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
@@ -128,10 +129,10 @@ function init()
   params:add_separator()
   
   print('adding triggers')
-  params:add_trigger('save_seq','<< Save Sequence')
+  params:add_trigger('save_seq','< Save Sequence')
   params:set_action('save_seq', function(x)  textentry.enter(function(new_fn) seq_save(new_fn) end, gen_seq_filename(),'Save sequence as ...') end)
   
-  params:add_trigger('load_seq','>> Load Sequence')
+  params:add_trigger('load_seq','> Load Sequence')
   params:set_action('load_seq', function(x) fileselect.enter(norns.state.data, seq_load) end)
   
   --params:add_trigger('save_pattern','< Save pattern')
@@ -160,10 +161,10 @@ function count()
   else 
     position = ((position + 14) % STEPS) + 1
   end
-  act[step[position]]()
-  if act[step[position]] ~= act[10] then
+  actions[cmd_sequence[position]]()
+  if actions[cmd_sequence[position]] ~= actions[REST_ACTION] then
     rests[position-1] = 0
-    local note_num = pattern[position] + offset + octave
+    local note_num = note_pattern[position] + offset + octave
     -- engine output
     if params:get("output") == 1 or params:get("output") == 2 then
       engine.noteOn(1,(midi_to_hz(note_num)),1)
@@ -196,7 +197,7 @@ function gen_seq_filename()
   vowels = {'a','e','i','o','u','y','hi','ae','ou'}
   fn = ''
   while fn=='' or util.file_exists(norns.state.data..fn..'.seq') do
-    for i=1,4 do fn = fn .. string.sub(description[step[math.random(16)]],0,1) .. vowels[math.random(#vowels)] end
+    for i=1,4 do fn = fn .. string.sub(description[cmd_sequence[math.random(16)]],0,1) .. vowels[math.random(#vowels)] end
     -- TODO eventually someone could use all possible combos and go into a permenant loop...
   end
   return fn
@@ -206,7 +207,7 @@ function seq_save(fn)
   local file, err = io.open(norns.state.data..fn..'.seq', "w+")
   if err then print('io err:'..err) return err end
   seq = ''
-  for k,v in pairs(step) do seq = seq .. label[v] end
+  for k,v in pairs(cmd_sequence) do seq = seq .. label[v] end
   print("writing sequence: " .. seq)
   file:write('SEQ '..seq .. '\n')
   file:close()
@@ -232,15 +233,15 @@ function seq_load(fn)
   raw_seq={}
   loading_seq:gsub(".",function(chr) table.insert(raw_seq,chr) end)
 
-  new_step = {}
-  -- Find the index of each step of the sequence and insert into the current seqence
+  new_cmd_sequence = {}
+  -- Find the index of each step of the cmd sequence and insert into the current seqence
   for k,v in pairs(raw_seq) do
     action = tab.key(label,v) or NOT_FOUND_ACTION
-    table.insert(new_step,action)
+    table.insert(new_cmd_sequence,action)
   end
   -- replace current sequence with laoded sequence
-  if #new_step == STEPS then
-    step = new_step 
+  if #new_cmd_sequence == STEPS then
+    cmd_sequence = new_cmd_sequence 
   else
     print("Error: Sequence was not the correct length after parsing.")
   end
@@ -248,7 +249,7 @@ end
 
 function newPattern()
   for i=1,16 do
-    table.insert(pattern,i,(notes[scaleGroup][math.random(#notes[scaleGroup])] + offset)) -- (#notes[scaleGroup])
+    table.insert(note_pattern,i,(notes[scaleGroup][math.random(#notes[scaleGroup])] + offset)) -- (#notes[scaleGroup])
   end
 end
 
@@ -269,10 +270,10 @@ function drawMenu()
 end
 
 function drawEdit()
-  for i=1,#step do
+  for i=1,#cmd_sequence do
     screen.level((i == edit) and 15 or 1)
     screen.move(i*8-8+1,60)
-    screen.text(label[step[i]])
+    screen.text(label[cmd_sequence[i]])
   end
   drawSeq()
 end
@@ -345,8 +346,8 @@ function drawHelp()
 end
 
 function drawSeq()
-  for i=1,#step do
-    screen.move(i*8-8+1,45-((pattern[i])/3)+5)
+  for i=1,#cmd_sequence do
+    screen.move(i*8-8+1,45-((note_pattern[i])/3)+5)
     if i == position then
       screen.level(15)
       screen.line_rel(0,0)
@@ -380,14 +381,14 @@ function enc(n,d)
       pageNum = util.clamp(pageNum + d,1,#pages)
     else
       noteSel = util.clamp(noteSel + d,1,#notes[scaleGroup])
-      pattern[edit] = notes[scaleGroup][noteSel] + offset
+      note_pattern[edit] = notes[scaleGroup][noteSel] + offset
     end
   elseif n == 2 then
     if KEYDOWN2 == 0 then
       edit = util.clamp(edit + d, 1, STEPS)
     end
   elseif n == 3 then
-    step[edit] = util.clamp(step[edit]+d, 1, COMMANDS)
+    cmd_sequence[edit] = util.clamp(cmd_sequence[edit]+d, 1, COMMANDS)
     print(scaleGroup)
   end
   redraw()
@@ -407,8 +408,8 @@ function key(n,d)
       hold_time = util.time() - down_time
       if hold_time < 1 then
         engineReset()
-        for i=1,#step do
-          step[i] = 1
+        for i=1,#cmd_sequence do
+          cmd_sequence[i] = 1
         end
       else
         metronome = 1 - metronome
@@ -416,7 +417,7 @@ function key(n,d)
       end
     end
   elseif n == 3 and d == 1 then
-    randomize_steps()
+    randomize_cmd_sequence()
   end
   print(hold_time)
 end
@@ -441,9 +442,9 @@ function noteSelect()
 
 end
 
-function randomize_steps()
+function randomize_cmd_sequence()
   for i=1,16 do
-    step[i] = math.random(COMMANDS)
+    cmd_sequence[i] = math.random(COMMANDS)
   end
 end
 
