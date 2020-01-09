@@ -162,7 +162,6 @@ function count()
   end
   actions[cmd_sequence[position]]()
   if actions[cmd_sequence[position]] ~= actions[REST_ACTION] then
-    rests[position-1] = 0
     local note_num = note_pattern[position] + offset + octave
     -- engine output
     if params:get("output") == 1 or params:get("output") == 2 then
@@ -174,7 +173,7 @@ function count()
       table.insert(active_notes, note_num)
     end
   else
-    rests[position-1] = 1
+    -- this is a rest, do nothing
   end
   if metronome == 1 then
     counter:start()
@@ -208,7 +207,7 @@ function seq_save(fn)
   seq = ''
   for k,v in pairs(cmd_sequence) do seq = seq .. label[v] end
   print("writing sequence: " .. seq)
-  file:write('SEQ '..seq .. '\n')
+  file:write('CMD:'..seq .. '\n')
   file:close()
 end
 
@@ -220,9 +219,9 @@ function seq_load(fn)
   loading_line = file:read() -- only read first line.
   file:close()
   -- split into header and sequence and check header
-  seq_header, loading_seq = loading_line:match("(SEQ):(.*)")
+  seq_header, loading_seq = loading_line:match("(CMD):(.*)")
   
-  if seq_header ~= 'SEQ' then print("Error: Invalid sequence header "..(seq_header or 'nil')) return nil end
+  if seq_header ~= 'CMD' then print("Error: Invalid sequence header "..(seq_header or 'nil')) return nil end
 
   --make sure the Sequnce is not too long or short and pad with '<'
   loading_seq = string.sub(loading_seq,0,STEPS)
@@ -241,6 +240,7 @@ function seq_load(fn)
   -- replace current sequence with laoded sequence
   if #new_cmd_sequence == STEPS then
     cmd_sequence = new_cmd_sequence 
+    updateRests()
   else
     print("Error: Sequence was not the correct length after parsing.")
   end
@@ -251,6 +251,13 @@ function newPattern()
     table.insert(note_pattern,i,(notes[scaleGroup][math.random(#notes[scaleGroup])] + offset)) -- (#notes[scaleGroup])
   end
 end
+
+function updateRests()
+  for i=1,#cmd_sequence do
+    if cmd_sequence[i] == REST_ACTION then rests[i] = 1 else rests[i] = 0 end
+  end
+end
+  
 
 function drawMenu()
   for i=1,#pages do
@@ -274,7 +281,7 @@ function drawEdit()
     screen.move(i*8-8+1,60)
     screen.text(label[cmd_sequence[i]])
   end
-  drawSeq()
+  drawNotePattern()
 end
 
 function drawHelp()
@@ -344,15 +351,19 @@ function drawHelp()
     end
 end
 
-function drawSeq()
+function drawNotePattern()
   for i=1,#cmd_sequence do
+    --update rests 
+    if cmd_sequence[i] == REST_ACTION then rests[i] = 1 else rests[i] = 0 end
+      
+    -- Draw note levels
     screen.move(i*8-8+1,45-((note_pattern[i])/3)+5)
     if i == position then
       screen.level(15)
       screen.line_rel(0,0)
     else
       -- screen.level(1)
-      if rests[i-1] == 1 then
+      if rests[i] == 1 then
         screen.level(0)
       else
         screen.level(4)
@@ -388,7 +399,7 @@ function enc(n,d)
     end
   elseif n == 3 then
     cmd_sequence[edit] = util.clamp(cmd_sequence[edit]+d, 1, COMMANDS)
-    print(scaleGroup)
+    if cmd_sequence[edit] == REST_ACTION then rests[edit] = 1 else rests[edit] = 0 end
   end
   redraw()
   print(pageNum)
