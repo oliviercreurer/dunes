@@ -1,6 +1,6 @@
 --
 --
---  DUNES (v1.1)
+--  DUNES (v1.1.1)
 --  Function sequencer
 --  @olivier
 --  https://llllllll.co/t/dunes/24790 
@@ -25,6 +25,7 @@ hs = include('lib/dunes_hs')
 -- The following core libs are used to implement save and load features.
 local textentry = require 'textentry'
 local fileselect = require 'fileselect'
+local listselect = require 'listselect'
 
 local midi = midi.connect()
 local midi_output_channel = 1
@@ -88,7 +89,7 @@ function octinc() octave = util.clamp(octave + 12, -12, 12) end
 function metrodec() counter.time = util.clamp(counter.time * 2, 0.125, 1) end
 function metroinc() counter.time = util.clamp(counter.time / 2, 0.125, 1) end
 function nPattern() newPattern() end
-function nNote() note_pattern[position] = notes[scaleGroup][math.random(#notes[scaleGroup])] + offset end
+function nNote() note_pattern[position] = scaleNotes[scaleGroup][math.random(#scaleNotes[scaleGroup])] + offset end
 function posRand() position = math.random(STEPS) end
 function dirForward() direction = 0 end
 function dirReverse() direction = 1 end
@@ -129,7 +130,7 @@ function init()
   
   print('adding triggers')
   params:add_trigger('save_seq','< Save Sequence')
-  params:set_action('save_seq', function(x)  textentry.enter(function(new_fn) seq_save(new_fn) end, gen_seq_filename(),'Save sequence as ...') end)
+  params:set_action('save_seq', function(x)  listselect.enter({'Save Command Sequence','Save Note Pattern','Save Both'},function(save_mode) textentry.enter( function(new_fn) seq_save(new_fn,save_mode) end, gen_seq_filename(),'Save sequence as ...') end) end)
   
   params:add_trigger('load_seq','> Load Sequence')
   params:set_action('load_seq', function(x) fileselect.enter(norns.state.data, seq_load) end)
@@ -141,7 +142,7 @@ function init()
   
   params:add_separator()
   
-  params:add_option("scale", "scale", names, 1)
+  params:add_option("scale", "scale", scaleNames, 1)
   params:set_action("scale", function(x) scaleGroup = x end)
  
   params:add_separator()
@@ -201,13 +202,26 @@ function gen_seq_filename()
   return fn
 end
 
-function seq_save(fn)
+function seq_save(fn,mode)
   local file, err = io.open(norns.state.data..fn..'.seq', "w+")
   if err then print('io err:'..err) return err end
-  seq = ''
-  for k,v in pairs(cmd_sequence) do seq = seq .. label[v] end
-  print("writing sequence: " .. seq)
-  file:write('CMD:'..seq .. '\n')
+  -- Write Command Sequnce
+  if mode == 'Save Command Sequence' or mode == 'Save Both' then
+    seq = ''
+    for k,v in pairs(cmd_sequence) do seq = seq .. label[v] end
+    file:write('CMD:'..seq .. '\n')
+  end
+  -- Write Command Sequnce
+  if mode == 'Save Note Pattern' or mode == 'Save Both' then
+    -- First save the notes
+    pattern = ''
+    file:write('NOTES:')
+    file:write(tostring(note_pattern[1]-offset))
+    for i=2,#note_pattern do file:write(','..tostring(note_pattern[i]-offset)) end
+    file:write('\n')
+    -- Save the Scale
+    file:write('SCALE:' .. scaleGroup)
+  end
   file:close()
 end
 
@@ -216,27 +230,37 @@ function seq_load(fn)
   
   local file, err = io.open(fn, "r")
   if err then print('io err:'..err) return err end
-  loading_line = file:read() -- only read first line.
+  for line in file:lines() do
+    -- split into header and sequence and check header
+    seq_header, loading_string = line:match("([A-Z]*):(.*)")
+    
+    if seq_header == 'CMD' then 
+      load_cmd_seq(loading_string)
+    elseif seq_header == 'NOTES' then 
+      load_note_pattern(loading_string)
+    elseif seq_header == 'SCALE' then 
+      --Set scale
+      scaleGroup = tonumber(loading_string)
+    else
+      print("Error: Invalid sequence header "..(seq_header or 'nil')) 
+    end
+  end
   file:close()
-  -- split into header and sequence and check header
-  seq_header, loading_seq = loading_line:match("(CMD):(.*)")
-  
-  if seq_header ~= 'CMD' then print("Error: Invalid sequence header "..(seq_header or 'nil')) return nil end
+end
 
+function load_cmd_seq(loading_seq)
   --make sure the Sequnce is not too long or short and pad with '<'
   loading_seq = string.sub(loading_seq,0,STEPS)
   loading_seq = loading_seq .. string.rep("<", STEPS-#loading_seq)
   
   -- and split into a table of Chars
-  raw_seq={}
-  loading_seq:gsub(".",function(chr) table.insert(raw_seq,chr) end)
-
   new_cmd_sequence = {}
-  -- Find the index of each step of the cmd sequence and insert into the current seqence
-  for k,v in pairs(raw_seq) do
-    action = tab.key(label,v) or NOT_FOUND_ACTION
+  loading_seq:gsub(".",function(chr) 
+    -- Find the index of each step of the cmd sequence and insert into the current seqence
+    action = tab.key(label,chr) or NOT_FOUND_ACTION
     table.insert(new_cmd_sequence,action)
-  end
+  end)
+
   -- replace current sequence with laoded sequence
   if #new_cmd_sequence == STEPS then
     cmd_sequence = new_cmd_sequence 
@@ -246,9 +270,19 @@ function seq_load(fn)
   end
 end
 
+function load_note_pattern(note_string)
+  print("Read NOTE string:" .. note_string)
+  new_note_pattern = {}
+  note_string:gsub("([^,]+)",function(read_note) 
+    print("Read NOTE:" .. read_note)
+    table.insert(new_note_pattern,tonumber(read_note)+offset) 
+  end)
+  note_pattern = new_note_pattern
+end
+
 function newPattern()
   for i=1,16 do
-    table.insert(note_pattern,i,(notes[scaleGroup][math.random(#notes[scaleGroup])] + offset)) -- (#notes[scaleGroup])
+    table.insert(note_pattern,i,(scaleNotes[scaleGroup][math.random(#scaleNotes[scaleGroup])] + offset)) -- (#notes[scaleGroup])
   end
 end
 
@@ -390,8 +424,8 @@ function enc(n,d)
     if KEYDOWN1 == 0 then
       pageNum = util.clamp(pageNum + d,1,#pages)
     else
-      noteSel = util.clamp(noteSel + d,1,#notes[scaleGroup])
-      note_pattern[edit] = notes[scaleGroup][noteSel] + offset
+      noteSel = util.clamp(noteSel + d,1,#scaleNotes[scaleGroup])
+      note_pattern[edit] = scaleNotes[scaleGroup][noteSel] + offset
     end
   elseif n == 2 then
     if KEYDOWN2 == 0 then
@@ -462,26 +496,27 @@ function midi_to_hz(note)
   return (440 / 32) * (2 ^ ((note - 9) / 12))
 end
 
-notes = { {0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31,33,35,36,38,40,41,43,45,47,48},
-          {0,2,3,5,7,8,10,12,14,15,17,19,20,22,24,26,27,29,31,32,34,36,38,39,41,43,44,46,48},
-          {0,2,3,5,7,9,10,12,14,15,17,19,21,22,24,26,27,29,31,33,34,36,38,39,41,43,45,46,48},
-          {0,1,3,5,7,8,10,12,13,15,17,19,20,22,24,25,27,29,31,32,34,36,37,39,41,43,44,46,48},
-          {0,2,4,6,7,9,11,12,14,16,18,19,21,23,24,26,28,30,31,33,35,36,38,40,42,43,45,47,48},
-          {0,2,4,5,7,9,10,12,14,16,17,19,21,22,24,26,28,29,31,33,34,36,38,40,41,43,45,46,48},
-          {0,3,5,7,10,12,15,17,19,22,24,27,29,31,34,36,39,41,43,46,48,51,53,55,58,60,63,65,67},
-          {0,2,4,7,9,12,14,16,19,21,24,26,28,31,33,36,38,40,43,45,48,50,52,55,57,60,62,64,67},
-          {0,2,5,7,10,12,14,17,19,22,24,26,29,31,34,36,38,41,43,46,48,50,53,55,58,60,62,65,67},
-          {0,3,5,8,10,12,15,17,20,22,24,27,29,32,34,36,39,41,44,46,48,51,53,56,58,60,63,65,68},
-          {0,2,5,7,9,12,14,17,19,21,24,26,29,31,33,36,38,41,43,45,48,50,53,55,57,60,62,65,67},
-          {0,1,3,6,7,8,11,12,13,15,18,19,20,23,24,25,27,30,31,32,35,36,37,39,42,43,44,47,48},
-          {0,1,4,6,7,8,11,12,13,16,18,19,20,23,24,25,28,30,31,32,35,36,37,40,42,43,44,47,48},
-          {0,1,4,6,7,9,11,12,13,16,18,19,21,23,24,25,28,30,31,33,35,36,37,40,42,43,45,47,48},
-          {0,1,4,5,7,8,11,12,13,16,17,19,20,23,24,25,28,29,31,32,35,36,37,40,41,43,44,47,48},
-          {0,1,4,5,7,9,10,12,13,16,17,19,21,22,24,25,28,29,31,33,35,36,37,40,41,43,45,47,48},
-          -- {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28}
+scaleNotes = {  
+  {0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31,33,35,36,38,40,41,43,45,47,48},
+  {0,2,3,5,7,8,10,12,14,15,17,19,20,22,24,26,27,29,31,32,34,36,38,39,41,43,44,46,48},
+  {0,2,3,5,7,9,10,12,14,15,17,19,21,22,24,26,27,29,31,33,34,36,38,39,41,43,45,46,48},
+  {0,1,3,5,7,8,10,12,13,15,17,19,20,22,24,25,27,29,31,32,34,36,37,39,41,43,44,46,48},
+  {0,2,4,6,7,9,11,12,14,16,18,19,21,23,24,26,28,30,31,33,35,36,38,40,42,43,45,47,48},
+  {0,2,4,5,7,9,10,12,14,16,17,19,21,22,24,26,28,29,31,33,34,36,38,40,41,43,45,46,48},
+  {0,3,5,7,10,12,15,17,19,22,24,27,29,31,34,36,39,41,43,46,48,51,53,55,58,60,63,65,67},
+  {0,2,4,7,9,12,14,16,19,21,24,26,28,31,33,36,38,40,43,45,48,50,52,55,57,60,62,64,67},
+  {0,2,5,7,10,12,14,17,19,22,24,26,29,31,34,36,38,41,43,46,48,50,53,55,58,60,62,65,67},
+  {0,3,5,8,10,12,15,17,20,22,24,27,29,32,34,36,39,41,44,46,48,51,53,56,58,60,63,65,68},
+  {0,2,5,7,9,12,14,17,19,21,24,26,29,31,33,36,38,41,43,45,48,50,53,55,57,60,62,65,67},
+  {0,1,3,6,7,8,11,12,13,15,18,19,20,23,24,25,27,30,31,32,35,36,37,39,42,43,44,47,48},
+  {0,1,4,6,7,8,11,12,13,16,18,19,20,23,24,25,28,30,31,32,35,36,37,40,42,43,44,47,48},
+  {0,1,4,6,7,9,11,12,13,16,18,19,21,23,24,25,28,30,31,33,35,36,37,40,42,43,45,47,48},
+  {0,1,4,5,7,8,11,12,13,16,17,19,20,23,24,25,28,29,31,32,35,36,37,40,41,43,44,47,48},
+  {0,1,4,5,7,9,10,12,13,16,17,19,21,22,24,25,28,29,31,33,35,36,37,40,41,43,45,47,48},
+  -- {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28}
 }
 
-names = {
+scaleNames = {
   "ionian",
   "aeolian",
   "dorian",
