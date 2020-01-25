@@ -1,19 +1,18 @@
 --
---
 --  DUNES (v1.1.1)
 --  Function sequencer
 --  @olivier
---  https://llllllll.co/t/dunes/24790 
---
---  
+--  //llllllll.co/t/dunes/24790 
+--  w/ contributions from
+--  @justmat + @JaggedNZ
 --
 --  E1: Navigate pages
 --  E2: Navigate to step
 --  E3: Select command
 --
 --  K1 (hold) + E1: Change note
---  K2: Reset
---  K2 (hold): Stop/start
+--  K2: stop/start
+--  K2 (hold): reset
 --  K3: Randomize all commands
 --
 
@@ -450,7 +449,7 @@ function key(n,d)
       down_time = util.time()
     else
       hold_time = util.time() - down_time
-      if hold_time < 1 then
+      if hold_time > 1 then
         engineReset()
         for i=1,#cmd_sequence do
           cmd_sequence[i] = 1
