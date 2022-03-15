@@ -9,16 +9,26 @@
 --  @JaggedNZ
 --  @sonocircuit
 --
---  E1: change note
+--  PAGE 1:
+--  E1: navigate pages
+--  K1 (hold) + E1: change note
 --  E2: navigate to step
 --  E3: select command
---
---  K1 (hold) + E1: navigate pages
 --  K1 (hold): ignore command
+--  K1 (hold) + K2: reset position
 --  K2: stop/start
---  K2 (hold): reset
 --  K3: randomize all commands
+--  K3 (longpress): reset all
 --
+--  PAGE 2 & 3:
+--  E1: navigate pages
+--  E2: change left parameter
+--  E3: change right parameter
+--  K2: toggle row
+--
+--  PAGE 4:
+--  E1: navigate pages
+--  E2: navigate list
 
 engine.name = "Passersby"
 Passersby = include "passersby/lib/passersby_engine"
@@ -38,13 +48,14 @@ local Formatters = require "formatters"
 
 local DUNES_DATA_PATH = _path.data.."dunes/"
 
-local pages = {"EDIT", "COMMANDS/SEQUENCE", "COMMANDS/SEQUENCE", "COMMANDS/ENGINE", "COMMANDS/SOFTCUT"}
+local pages = {"SEQUENCE", "DELAY PARAMETERS", "ENGINE PARAMETERS", "COMMAND REFERENCE"}
 local output_options = {"off", "midi", "crow 1+2", "crow ii JF"}
 local active_notes = {}
 
 local baseFreq = 440
 local position = 1
 local pageNum = 1
+local lineNum = 0
 local edit = 1
 local STEPS = 16
 local cmd_sequence = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
@@ -53,11 +64,12 @@ local noteSel = 1
 local metronome = 1 -- 1 is off, 0 is on
 local transport_tog = 0
 local rate = 1
+local ratchet = 2
 local direction = 0
 local env = 0.01
 
 local KEYDOWN1 = 0
-local KEYDOWN2 = 0
+local viewinfo = 0
 
 local note_pattern = {}
 local rests = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -88,16 +100,19 @@ function octinc() octave = util.clamp(octave + 12, -12, 12) end
 function octrnd() local oct_options = {-12, 0, 12} octave = oct_options[math.random(1, 3)] end
 function tempodec() rate = util.clamp(rate * 2, 0.125, 4) end
 function tempoinc() rate = util.clamp(rate / 2, 0.125, 4) end
+function tempotrip() rate = util.clamp(rate * 2/3, 0.125, 4) end
+function tempodot() rate = util.clamp(rate + rate / 2, 0.125, 4) end
 function temporeset() rate = 1 end
 function nNote() note_pattern[position] = scaleNotes[scaleGroup][math.random(#scaleNotes[scaleGroup])] + offset end
-function posRand() --[[position = math.random(STEPS)]] end --keep as placeholder
-function posstart() --[[if direction == 0 then position = 1 else position = 16 end]] end --keep as placeholder
+function posRand() --[[position = math.random(STEPS)]] end --keep function as placeholder
+function posstart() --[[if direction == 0 then position = 1 else position = 16 end]] end --keep function as placeholder
 function dirForward() direction = 0 end
 function dirReverse() direction = 1 end
 function rest() end
 function nPattern() newPattern() end
 
 -- ENGINE COMMANDS
+--function glidenote() glide = math.random() engine.glide(glide) end
 function decaydec() decay = util.clamp(decay - 0.1, 0.1, 1.5) engine.decay(decay) end
 function decayinc() decay = util.clamp(decay + 0.1, 0.1, 1.5) engine.decay(decay) end
 function wShapedec() wave = util.clamp(wave - 0.1, 0, 0.6) engine.waveShape(wave) end
@@ -121,42 +136,43 @@ function crowtrig()
 end
 
 --SOFTCUT COMMANDS
-function panrnd() pan = math.random(2, 8) / 10 end --math.random() * 20 - 10) / 10
+function panrnd() pan = (math.random() * 20 - 10) / 10 end
 function rateReset() delayRate = 1 end
 function rateMforward() delayRate = util.clamp(delayRate * 2, 0.5, 2) end
 function rateMreverse() delayRate = util.clamp(delayRate * 2, -0.5, -2) end
 function rateDforward() delayRate = util.clamp(delayRate / 2, 0.5, 2) end
 function rateDreverse() delayRate = util.clamp(delayRate / 2, -0.5, -2) end
-function loop_on() 	softcut.rec_level(1, 0) softcut.pre_level(1, 1) end
-function loop_off() pre_l = params:get("delay_feedback") softcut.rec_level(1, 1) softcut.pre_level(1, pre_l) end
+function loop_on() softcut.rec_level(1, 0) softcut.pre_level(1, 1) end
+function loop_off() local pre_l = params:get("delay_feedback") softcut.rec_level(1, 1) softcut.pre_level(1, pre_l) end
 
 local actions =
 {
-  octdec, octinc, octrnd, tempodec, tempoinc, temporeset, rest, nNote, posRand,
+  octdec, octinc, octrnd, tempodec, tempoinc, temporeset, tempotrip, tempodot, rest, nNote, posRand,
   posstart, dirForward, dirReverse, nPattern, decaydec, decayinc, wShapedec,
-  wShapeinc, wFolddec, wFoldinc, verbdec, verbinc, panrnd, rateReset, rateMforward,
-  rateMreverse, rateDforward, rateDreverse, loop_on, loop_off, rndvolt, crowtrig
+  wShapeinc, wFolddec, wFoldinc, verbdec, verbinc, rndvolt, crowtrig, panrnd, rateReset, rateMforward,
+  rateMreverse, rateDforward, rateDreverse, loop_on, loop_off
 }
 
 local COMMANDS = #actions
-local REST_ACTION = 7 -- "M"
-local NOT_FOUND_ACTION = 9 -- "?"
+local REST_ACTION = 9 -- "M"
+local NOT_FOUND_ACTION = 11 -- "?"
 
 -- Labels for display
 local label =
 {
-  "<", ">", "O", "-", "+", "=", "M", "N", "?", "X",
+  "<", ">", "O", "-", "+", "=", "*", ".", "M", "N", "?", "X",
   "}", "{", "P", "d", "D", "s", "S", "f", "F", "v",
-  "V", "±", "1", "2", "3", "4", "5", "H", "h", "R", "E"
+  "V", "R", "E", "±", "1", "2", "3", "4", "5", "Z", "z"
 }
 
 local description =
 {
-  "oct -", "oct +", "oct rnd", "tempo -", "tempo +", "tempo reset", "rest",
-  "new note", "rnd position", "reset pos.", "forward", "reverse", "new patt.",
-  "decay -", "decay +", "shape -", "shape +", "folds -", "folds +", "reverb -",
-  "reverb +", "pan (rnd)", "rate reset", "rate * (+)", "rate * (-)", "rate / (+)", "rate / (-)",
-  "loop on", "loop off", "rnd volt", "trig"
+  "octave down", "octave up", "random octave", "half tempo", "double tempo", "reset tempo",
+  "triplett notes", "dotted notes", "take a rest", "new random note", "random position", "reset position",
+  "play forward", "play reverse", "new note pattern", "decrease decay", "increase decay", "decrease waveshape",
+  "increase waveshape", "decrease wavefold", "increase wavefold", "decrease reverb", "increase reverb", "crow random voltage",
+   "crow trigger", "random delay pan", "reset delay rate", "double delay rate fwd", "double delay rate rev", "half delay rate fwd",
+  "half delay rate rev", "freeze delay buffer", "unfreeze delay buffer"
 }
 
 function init()
@@ -209,7 +225,7 @@ function init()
 
   engineReset()
 
-  clock_id = clock.run(count)
+  step_clk = clock.run(count)
   transport()
 
   --norns.enc.sens(1, 5)
@@ -223,16 +239,16 @@ function count()
       all_notes_off()
       if direction == 0 then
         position = position + 1
-        if cmd_sequence[position] == 9 then
+        if cmd_sequence[position] == 11 then
           position = math.random(STEPS)
-        elseif(position > STEPS or cmd_sequence[position] == 10) then
+        elseif(position > STEPS or cmd_sequence[position] == 12) then
           position = 1
         end
       else
         position = position - 1
-        if cmd_sequence[position] == 9 then
+        if cmd_sequence[position] == 11 then
           position = math.random(STEPS)
-        elseif (position < 1 or cmd_sequence[position] == 10) then
+        elseif (position < 1 or cmd_sequence[position] == 12) then
           position = 16
         end
       end
@@ -242,32 +258,37 @@ function count()
         actions[cmd_sequence[position]]()
       end
       if actions[cmd_sequence[position]] ~= actions[REST_ACTION] then
-        local note_num = note_pattern[position] + offset + octave
-        -- engine output
-        if params:get("audio_out") == 2 then
-          engine.noteOn(1, (midi_to_hz(note_num)), 1)
-        end
-        -- midi output
-        if params:get("out_opt") == 2 then
-          m:note_on(note_num, 100, midi_channel)
-          table.insert(active_notes, note_num)
-        end
-        -- crow output
-        if params:get("out_opt") == 3 then
-          crow.output[1].volts = ((note_num - 60) / 12)
-          crow.output[2].action = "{to(5, 0), to(0, 0.1)}"
-          crow.output[2]()
-        end
-        -- jf output
-        if params:get("out_opt") == 4 then
-          crow.ii.jf.play_note(((note_num - 60) / 12), 5)
-        end
+        play_note()
       end
       softcut.pan(1, pan)
       softcut.rate(1, delayRate)
+      --glide = 0
       if params:get("midi_trnsp") == 2 and transport_tog == 0 then m:start() transport_tog = 1 end
       redraw()
     end
+  end
+end
+
+function play_note()
+  local note_num = note_pattern[position] + offset + octave
+  -- engine output
+  if params:get("audio_out") == 2 then
+    engine.noteOn(1, (midi_to_hz(note_num)), 1)
+  end
+  -- midi output
+  if params:get("out_opt") == 2 then
+    m:note_on(note_num, 100, midi_channel)
+    table.insert(active_notes, note_num)
+  end
+  -- crow output
+  if params:get("out_opt") == 3 then
+    crow.output[1].volts = ((note_num - 60) / 12)
+    crow.output[2].action = "{to(5, 0), to(0, 0.1)}"
+    crow.output[2]()
+  end
+  -- jf output
+  if params:get("out_opt") == 4 then
+    crow.ii.jf.play_note(((note_num - 60) / 12), 5)
   end
 end
 
@@ -277,6 +298,8 @@ function transport()
   else
     if params:get("midi_trnsp") == 2 then m:stop() transport_tog = 0 end
     running = false
+    all_notes_off()
+    loop_off()
   end
 end
 
@@ -291,6 +314,7 @@ function clock.transport.stop()
     running = false
     position = 16
     all_notes_off()
+    loop_off()
   end
 end
 
@@ -400,7 +424,7 @@ end
 
 function drawMenu()
   for i = 1, #pages do
-    screen.move(i * 4 + 104, 8)
+    screen.move(i * 4 + 108, 8)
     screen.line_rel(1, 0)
     if i == pageNum then
       screen.level(15)
@@ -409,8 +433,8 @@ function drawMenu()
     end
     screen.stroke()
   end
-  screen.move(1, 10)
-  screen.level(1)
+  screen.move(4, 10)
+  screen.level(6)
   screen.text(pages[pageNum])
 end
 
@@ -421,110 +445,6 @@ function drawEdit()
     screen.text(label[cmd_sequence[i]])
   end
   drawNotePattern()
-end
-
-function drawHelp()
-    if pageNum == 2 then
-      screen.level(15)
-      screen.move(1, 20)
-      for i = 1, 5 do
-        screen.move(1, i * 9 + 15)
-        screen.text(label[i])
-      end
-      screen.move(10, 20)
-      screen.level(4)
-      for i = 1, 5 do
-        screen.move(10, i * 9 + 15)
-        screen.text(description[i])
-      end
-      screen.move(32, 20)
-      screen.level(15)
-      for i = 6, 10 do
-        screen.move(64, ((i - 5) * 9) + 15)
-        screen.text(label[i])
-      end
-      screen.move(10, 20)
-      screen.level(4)
-      for i = 6, 10 do
-        screen.move(74, ((i - 5) * 9) + 15)
-        screen.text(description[i])
-      end
-    elseif pageNum == 3 then
-      screen.level(15)
-      screen.move(1, 20)
-      for i = 11, 13 do
-        screen.move(1, (i - 10) * 9 + 15)
-        screen.text(label[i])
-      end
-      screen.move(10, 20)
-      screen.level(4)
-      for i = 11, 13 do
-        screen.move(10, (i - 10) * 9 + 15)
-        screen.text(description[i])
-      end
-      --[[screen.move(32, 20)
-      screen.level(15)
-      for i = 16, 18 do
-        screen.move(64, ((i - 15) * 9) + 15)
-        screen.text(label[i])
-      end
-      screen.move(10, 20)
-      screen.level(4)
-      for i = 16, 18 do
-        screen.move(74, ((i - 15) * 9) + 15)
-        screen.text(description[i])
-      end]]--
-    elseif pageNum == 4 then
-      screen.level(15)
-      screen.move(1, 20)
-      for i = 14, 18 do
-        screen.move(1, (i - 13) * 9 + 15)
-        screen.text(label[i])
-      end
-      screen.move(10,20)
-      screen.level(4)
-      for i = 14, 18 do
-        screen.move(10, (i - 13) * 9 + 15)
-        screen.text(description[i])
-      end
-      screen.move(32, 20)
-      screen.level(15)
-      for i = 19, 21 do
-        screen.move(64, ((i - 18) * 9) + 15)
-        screen.text(label[i])
-      end
-      screen.move(10, 20)
-      screen.level(4)
-      for i = 19, 21 do
-        screen.move(74, ((i - 18) * 9) + 15)
-        screen.text(description[i])
-      end
-    elseif pageNum == 5 then
-      screen.level(15)
-      screen.move(1, 20)
-      for i = 22, 26 do
-        screen.move(1, (i - 21) * 9 + 15)
-        screen.text(label[i])
-      end
-      screen.move(10,20)
-      screen.level(4)
-      for i = 22, 26 do
-        screen.move(10, (i - 21) * 9 + 15)
-        screen.text(description[i])
-      end
-      screen.move(32, 20)
-      screen.level(15)
-      for i = 27, 29 do
-        screen.move(64, ((i - 26) * 9) + 15)
-        screen.text(label[i])
-      end
-      screen.move(10, 20)
-      screen.level(4)
-      for i = 27, 29 do
-        screen.move(74, ((i - 26) * 9) + 15)
-        screen.text(description[i])
-      end
-    end
 end
 
 function drawNotePattern()
@@ -548,11 +468,79 @@ function drawNotePattern()
   end
 end
 
+function drawParams()
+  local sel = viewinfo == 0
+  if pageNum == 2 then
+    screen.level(sel and 15 or 4)
+    screen.move(4, 28)
+    screen.text(params:string("delay_level"))
+    screen.move(64, 28)
+    screen.text(params:string("delay_length"))
+    screen.level(3)
+    screen.move(4, 36)
+    screen.text("level")
+    screen.move(64, 36)
+    screen.text("rate")
+
+    screen.level(not sel and 15 or 4)
+    screen.move(4, 50)
+    screen.text(params:string("delay_feedback"))
+    screen.move(64, 50)
+    screen.text(params:string("delay_length_ft"))
+    screen.level(3)
+    screen.move(4, 58)
+    screen.text("feedback")
+    screen.move(64, 58)
+    screen.text("adjust rate")
+
+  elseif pageNum == 3 then
+    screen.level(sel and 15 or 4)
+    screen.move(4, 28)
+    screen.text(params:string("wave_shape"))
+    screen.move(64, 28)
+    screen.text(params:string("wave_folds"))
+    screen.level(3)
+    screen.move(4, 36)
+    screen.text("wave shape")
+    screen.move(64, 36)
+    screen.text("wave folds")
+
+    screen.level(not sel and 15 or 4)
+    screen.move(4, 50)
+    screen.text(params:string("peak"))
+    screen.move(64, 50)
+    screen.text(params:string("decay"))
+    screen.level(3)
+    screen.move(4, 58)
+    screen.text("cutoff freq")
+    screen.move(64, 58)
+    screen.text("decay")
+  end
+end
+
+function drawHelp()
+  local ln = lineNum
+  screen.level(15)
+  screen.move(4, 20)
+  for i = 1, 5 do
+    screen.move(1, i * 9 + 15)
+    screen.text(label[i + ln])
+  end
+  screen.move(16, 20)
+  screen.level(4)
+  for i = 1, 5 do
+    screen.move(10, i * 9 + 15)
+    screen.text(description[i + ln])
+  end
+end
+
 function redraw()
   screen.clear()
   drawMenu()
   if pageNum == 1 then
     drawEdit()
+  elseif (pageNum == 2 or pageNum == 3) then
+    drawParams()
   else
     drawHelp()
   end
@@ -560,20 +548,62 @@ function redraw()
 end
 
 function enc(n, d)
-  if n == 1 then
-    if KEYDOWN1 == 1 then
-      pageNum = util.clamp(pageNum + d, 1, #pages)
-    else
+  --change page
+  if n == 1 and KEYDOWN1 == 0 then
+    pageNum = util.clamp(pageNum + d, 1, #pages)
+  end
+  --enc page 1
+  if pageNum == 1 then
+    if n == 1 and KEYDOWN1 == 1 then
       noteSel = util.clamp(noteSel + d, 1, #scaleNotes[scaleGroup])
       note_pattern[edit] = scaleNotes[scaleGroup][noteSel] + offset
-    end
-  elseif n == 2 then
-    if KEYDOWN2 == 0 then
+    elseif n == 2 then
       edit = util.clamp(edit + d, 1, STEPS)
+    elseif n == 3 then
+      cmd_sequence[edit] = util.clamp(cmd_sequence[edit] + d, 1, COMMANDS)
+      if cmd_sequence[edit] == REST_ACTION then
+        rests[edit] = 1
+      else
+        rests[edit] = 0
+      end
     end
-  elseif n == 3 then
-    cmd_sequence[edit] = util.clamp(cmd_sequence[edit] + d, 1, COMMANDS)
-    if cmd_sequence[edit] == REST_ACTION then rests[edit] = 1 else rests[edit] = 0 end
+  -- enc page 2
+  elseif pageNum == 2 then
+    if viewinfo == 0 then
+      if n == 2 then
+        params:delta("delay_level", d)
+      elseif n == 3 then
+        params:delta("delay_length", d)
+      end
+    else
+      if n == 2 then
+        params:delta("delay_feedback", d)
+      elseif n == 3 then
+        params:delta("delay_length_ft", d)
+      end
+    end
+  -- enc page 3
+  elseif pageNum == 3 then
+    if viewinfo == 0 then
+      if n == 2 then
+        params:delta("wave_shape", d)
+      elseif n == 3 then
+        params:delta("wave_folds", d)
+      end
+    else
+      if n == 2 then
+        params:delta("peak", d)
+      elseif n == 3 then
+        params:delta("decay", d)
+      end
+    end
+  --enc page 4
+  elseif pageNum == 4 then
+    if n == 2 then
+      lineNum = util.clamp(lineNum + d, 0, 28)
+    elseif n == 3 then
+      -- do nothing for the moment (scroll through command groups?)
+    end
   end
   redraw()
 end
@@ -581,26 +611,46 @@ end
 down_time = 0
 
 function key(n, z)
-  if n == 1 then
-    KEYDOWN1 = z
-  elseif n == 2 then
-    KEYDOWN2 = z
-    if z == 1 then
-      down_time = util.time()
-    else
-      hold_time = util.time() - down_time
-      if hold_time > 1 then
-        engineReset()
-        for i = 1, #cmd_sequence do
-          cmd_sequence[i] = 1
+  if n == 1 then KEYDOWN1 = z end
+
+  if pageNum == 1 then
+    if n == 2 then
+      if z == 1 then
+        if KEYDOWN1 == 0 then
+          metronome = 1 - metronome
+          transport()
+        elseif KEYDOWN1 == 1 then
+          if direction == 0 then
+            position = 16
+          elseif direction == 1 then
+            position = 1
+          end
         end
+      end
+    elseif n == 3 then
+      if z == 1 then
+        down_time = util.time()
       else
-        metronome = 1 - metronome
-        transport()
+        hold_time = util.time() - down_time
+        if hold_time > 1 then
+          for i = 1, #cmd_sequence do
+            cmd_sequence[i] = 1
+          end
+          engineReset()
+        else
+          randomize_cmd_sequence()
+        end
       end
     end
-  elseif n == 3 and z == 1 then
-    randomize_cmd_sequence()
+elseif (pageNum == 2 or pageNum == 3) then
+    if n == 2 then
+      if z == 1 then
+        viewinfo = 1 - viewinfo
+        redraw()
+      end
+    end
+  elseif pageNum == 4 then
+    --do nothing
   end
 end
 
@@ -615,18 +665,18 @@ function engineReset()
   verb = 0.05
   octave = 0
   delayRate = 1
-  pan = 0.5
-  softcut.rec(1, 1)
-  softcut.buffer_clear_channel(1)
-end
-
-function noteSelect()
+  pan = 0
+  loop_off()
+  redraw()
+  --softcut.rec(1, 1)
+  --softcut.buffer_clear_channel(1)
 end
 
 function randomize_cmd_sequence()
   for i = 1, 16 do
     cmd_sequence[i] = math.random(COMMANDS)
   end
+  redraw()
 end
 
 function midi_to_hz(note)
@@ -670,7 +720,3 @@ scaleNames = {
   "bhairav",
   "ahirbhairav",
 }
-
-function cleanup()
-
-end
