@@ -1,27 +1,30 @@
-# Dunes (v1.0)
+# Dunes (v1.1.2)
 Dunes is a function sequencer for Monome Norns
 by @olivier <br>
-llllllll.co/t/?
+llllllll.co/t/dunes/24790
 
 Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequencer for the creation of emergent patterns, timbres and textures. Commands – assigned per step in the bottom row of the EDIT page – modulate sequence, engine and softcut parameters.
 
 ## Command List
 
 __Sequence:__
-- `<` : Octave -
-- `>` : Octave +
-- `-` : Metro -
-- `+` : Metro +
-- `P` : New pattern
+- `<` : Octave up
+- `>` : Octave down
+- `O` : Random octave
+- `-` : Half tempo
+- `+` : Double tempo
+- `=` : Reset tempo
+- `M` : Add rest (at step)
 - `N` : New note (at step)
+- `P` : New pattern
+- `X` : Reset position
 - `?` : Jump to random step
 - `}` : Forward direction
 - `{` : Reverse direction
-- `M` : Add rest (at step)
-- `d` : 
 
 __Engine:__
 
+- `G` : Random glide at step
 - `d` : Decay -
 - `D` : Decay +
 - `s` : Wave shape -
@@ -33,8 +36,11 @@ __Engine:__
 
 __Softcut:__
 
-- `1` : Random pan position (0.2 - 0.8)
-- `2` : Multiply rate (forward)
-- `3` : Multiply rate (reverse)
-- `4` : Divide rate (forward)
-- `5` : Divide rate (reverse)
+- `±` : Random pan position (-1 - 1)
+- `1` : Reset delay rate
+- `2` : Multiply delay rate (forward)
+- `3` : Multiply delay rate (reverse)
+- `4` : Divide delay rate (forward)
+- `5` : Divide delay rate (reverse)
+- `Z` : Freeze delay buffer
+- `z` : Unfreeze delay buffer
