@@ -34,8 +34,6 @@ function sc.init()
 	softcut.filter_bp(1, 1.0);
 	softcut.filter_rq(1, 2.0);
 
-  --params:add_separator()
-  params:add_group("delay", 4)
   params:add_control("delay_level", "delay level", controlspec.new(0, 1, 'lin' , 0, 0, ""))
   params:set_action("delay_level", function(x) softcut.level(1, x) end)
 
