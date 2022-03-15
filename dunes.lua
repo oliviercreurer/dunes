@@ -638,8 +638,15 @@ function key(n, z)
           end
           engineReset()
         else
-          randomize_cmd_sequence()
+          if KEYDOWN1 == 0 then
+            randomize_cmd_sequence()
+          else
+            for i = 1, #cmd_sequence do
+              cmd_sequence[i] = 1
+            end
+          end
         end
+        redraw()
       end
     end
 elseif (pageNum == 2 or pageNum == 3) then
@@ -667,16 +674,12 @@ function engineReset()
   delayRate = 1
   pan = 0
   loop_off()
-  redraw()
-  --softcut.rec(1, 1)
-  --softcut.buffer_clear_channel(1)
 end
 
 function randomize_cmd_sequence()
   for i = 1, 16 do
     cmd_sequence[i] = math.random(COMMANDS)
   end
-  redraw()
 end
 
 function midi_to_hz(note)
