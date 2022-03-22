@@ -17,7 +17,7 @@ __Sequence:__
 - `M` : Add rest (at step)
 - `N` : New note (at step)
 - `P` : New pattern
-- `X` : Reset position
+- `#` : Reset position
 - `?` : Jump to random step
 - `}` : Forward direction
 - `{` : Reverse direction
@@ -36,7 +36,7 @@ __Engine:__
 
 __Softcut:__
 
-- `±` : Random pan position (-1 - 1)
+- `X` : Random pan position (-1 - 1)
 - `1` : Reset delay rate
 - `2` : Multiply delay rate (forward)
 - `3` : Multiply delay rate (reverse)
@@ -44,3 +44,4 @@ __Softcut:__
 - `5` : Divide delay rate (reverse)
 - `Z` : Freeze delay buffer
 - `z` : Unfreeze delay buffer
+- `!` : Insert random command at random step
