@@ -65,16 +65,22 @@ local STEPS = 16
 local cmd_sequence = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 local scaleGroup = 1
 local noteSel = 1
+
+local vel_val = 100
+local velocity = 100
 local velo_u = 100
 local velo_l = 20
+
 local metronome = 1 -- 1 is off, 0 is on
 local transport_tog = 0
 local rate = 1
 local direction = 0
-local env1_attack = 0
-local env1_decay = 0.05
-local env2_attack = 0
-local env2_decay = 0.05
+
+local v8_std = 12
+local env1_a = 0
+local env1_r = 0.05
+local env2_a = 0
+local env2_r = 0.05
 
 local KEYDOWN1 = 0
 local viewinfo = 0
@@ -112,6 +118,8 @@ function posstart() end -- keep function as placeholder
 function dirForward() direction = 0 end
 function dirReverse() direction = 1 end
 
+function rand_command() cmd_sequence[math.random(16)] = math.random(33) end -- randomize command of random step
+
 -- ENGINE COMMANDS
 function glidenote() glide = math.random() engine.glide(glide) end
 
@@ -135,7 +143,7 @@ function rndvolt()
 end
 
 function crowenv()
-  crow.output[4].action = "{ to(0,0), to(8, "..env2_attack.."), to(0, "..env2_decay..") }"
+  crow.output[4].action = "{ to(0,0), to(8, "..env2_a.."), to(0, "..env2_r..") }"
   crow.output[4]()
 end
 
@@ -157,7 +165,8 @@ local actions =
   octdec, octinc, octrnd, tempodec, tempoinc, temporeset, rest, nNote,
   nPattern, posstart, posRand, dirForward, dirReverse, glidenote, decaydec, decayinc,
   wShapedec, wShapeinc, wFolddec, wFoldinc, verbdec, verbinc, rndvolt, crowenv,
-  panrnd, rateReset, rateMforward, rateMreverse, rateDforward, rateDreverse, loop_on, loop_off
+  panrnd, rateReset, rateMforward, rateMreverse, rateDforward, rateDreverse,
+  loop_on, loop_off, rand_command
 }
 
 local COMMANDS = #actions
@@ -172,7 +181,7 @@ local label =
 {
   "<", ">", "O", "-", "+", "=", "M", "N", "P", "#", "?",
   "}", "{", "G", "d", "D", "s", "S", "f", "F", "v", "V",
-  "R", "E", "±", "1", "2", "3", "4", "5", "Z", "z",
+  "R", "E", "X", "1", "2", "3", "4", "5", "Z", "z", "!",
 }
 
 local description =
@@ -181,9 +190,9 @@ local description =
   "take a rest", "new random note", "new note pattern", "reset position", "random position",
   "forward direction", "reverse direction", "random glide", "decrease decay", "increase decay",
   "decrease waveshape", "increase waveshape", "decrease wavefold", "increase wavefold",
-  "decrease reverb", "increase reverb", "crow random voltage", "crow trigger", "random delay pan",
+  "decrease reverb", "increase reverb", "crow random voltage", "crow envelope", "random delay pan",
   "reset delay rate", "double delay rate fwd", "double delay rate rev", "half delay rate fwd",
-  "half delay rate rev", "freeze delay buffer", "unfreeze delay buffer"
+  "half delay rate rev", "freeze delay buffer", "unfreeze delay buffer", "rnd cmd @ rnd pos"
 }
 
 ------------------------ init -------------------------
@@ -192,43 +201,37 @@ function init()
   params:add_separator("DUNES")
 
   -- output settings
+  params:add_group("output settings", 2)
   params:add_option("audio_out", "audio output", {"off", "on"}, 2)
 
   params:add_option("ext_out", "external output", output_options, 1)
-  params:set_action("ext_out",
-  function(value)
-    all_notes_off()
-    if value == 4 then
-      crow.ii.pullup(true)
-      crow.ii.jf.mode(1)
-    else crow.ii.jf.mode(0)
-    end
-  end)
+  params:set_action("ext_out", function(value) all_notes_off() set_jfmode(value) end)
 
   -- midi settings
   params:add_group("midi settings", 6)
 
   build_midi_device_list()
 
-  params:add_option("midi_trnsp", "midi transport", {"off", "send", "receive"}, 1)
-
-  params:add_option("set_midi_device", "midi out device", midi_devices, 1)
+  params:add_option("set_midi_device", "midi device", midi_devices, 1)
   params:set_action("set_midi_device", function(value) m = midi.connect(value) end)
 
   params:add_number("midi_out_channel", "midi channel", 1, 16, 1)
   params:set_action("midi_out_channel", function(value) all_notes_off() midi_channel = value end)
 
+  params:add_option("midi_trnsp", "midi transport", {"off", "send", "receive"}, 1)
+
   params:add_option("vel_mode", "midi velocity", {"fixed", "random"}, 1)
 
-  params:add_number("midi_vel_upper", "vel: max/fixed", 1, 127, 100)
-  params:set_action("midi_vel_upper", function(value) velo_u = value end)
+  params:add_number("midi_vel_val", "velocity value", 1, 127, 100)
+  params:set_action("midi_vel_val", function(value) vel_val = value set_vel_range() end)
 
-  params:add_number("midi_vel_lower", "vel: min", 1, 127, 20)
-  params:set_action("midi_vel_lower", function(value) velo_l = value end)
+  params:add_number("midi_vel_range", "velocity range ±", 1, 127, 20)
+  params:set_action("midi_vel_range", function() set_vel_range() end)
 
   -- scale settings
+  params:add_group("scale settings", 3)
   params:add_option("scale", "scale", scaleNames, 1)
-  params:set_action("scale", function(x) scaleGroup = x end)
+  params:set_action("scale", function(value) scaleGroup = value end)
 
   params:add_number("root_note", "root note", 24, 84, 48, function(param) return mu.note_num_to_name(param:get(), true) end)
   params:set_action("root_note", function(value) root = value - 40 end)
@@ -236,8 +239,8 @@ function init()
   params:add_option("view_note", "display notes", {"no", "yes"}, 1)
 
   -- save and load
-  params:add_separator("save & load")
-
+  --params:add_separator("save & load")
+  params:add_group("save & load", 2)
   params:add_trigger("save_seq", "< Save Sequence")
   params:set_action("save_seq", function() save_sequece() end)
 
@@ -255,21 +258,24 @@ function init()
   -- crow params
   params:add_separator("crow")
 
-  params:add_group("out 2: a-d envelope", 2)
-  params:add_control("env1_attack", "attack", controlspec.new(0.00, 1, "lin", 0.01, 0.00, "s"))
-  params:set_action("env1_attack", function(value) env1_attack = value end)
+  params:add_option("v8_type", "out 1: v/oct type", {"1 v/oct", "1.2 v/oct"}, 1)
+  params:set_action("v8_type", function(x) if x == 1 then v8_std = 12 else v8_std = 10 end end)
 
-  params:add_control("env1_decay", "decay", controlspec.new(0.01, 1, "lin", 0.01, 0.05, "s"))
-  params:set_action("env1_attack", function(value) env1_decay = value end)
+  params:add_group("out 2: envelope", 2)
+  params:add_control("env1_attack", "attack", controlspec.new(0.00, 1, "lin", 0.01, 0.00, "s"))
+  params:set_action("env1_attack", function(value) env1_a = value end)
+
+  params:add_control("env1_release", "release", controlspec.new(0.01, 1, "lin", 0.01, 0.05, "s"))
+  params:set_action("env1_release", function(value) env1_r = value end)
 
   params:add_control("v_range", "out 3: rnd v-range", controlspec.new(1, 5, "lin", 0.1, 5, "v"))
 
-  params:add_group("out 4: a-d envelope", 2)
-  params:add_control("env2_attack", "attack", controlspec.new(0.00, 1, "lin", 0.01, 0.00, "s"))
-  params:set_action("env2_attack", function(value) env2_attack = value end)
+  params:add_group("out 4: envelope", 2)
+  params:add_control("env2_attack", "attack", controlspec.new(0.00, 4, "lin", 0.01, 0.00, "s"))
+  params:set_action("env2_attack", function(value) env2_a = value end)
 
-  params:add_control("env2_decay", "decay", controlspec.new(0.01, 1, "lin", 0.01, 0.05, "s"))
-  params:set_action("env2_attack", function(value) env2_decay = value end)
+  params:add_control("env2_release", "release", controlspec.new(0.01, 4, "lin", 0.01, 0.05, "s"))
+  params:set_action("env2_release", function(value) env2_r = value end)
 
   engineReset()
 
@@ -349,23 +355,31 @@ function play_note()
     -- midi output
     if params:get("ext_out") == 2 then
       if params:get("vel_mode") == 2 then
-        local velocity = math.random(velo_l, velo_u)
+        velocity = math.random(velo_l, velo_u)
       else
-        local velocity = velo_u
+        velocity = vel_val
       end
       m:note_on(note_num, velocity, midi_channel)
       table.insert(active_notes, note_num)
     end
     -- crow output
     if params:get("ext_out") == 3 then
-      crow.output[1].volts = ((note_num - 60) / 12)
-      crow.output[2].action = "{ to(0,0), to(8, "..env1_attack.."), to(0, "..env1_decay..") }"
+      crow.output[1].volts = ((note_num - 60) / v8_std)
+      crow.output[2].action = "{ to(0, 0), to(8, "..env1_a.."), to(0, "..env1_r..", 'exponential') }"
       crow.output[2]()
     end
     -- jf output
     if params:get("ext_out") == 4 then
       crow.ii.jf.play_note(((note_num - 60) / 12), 5)
     end
+  end
+end
+
+function set_jfmode(mode)
+  if mode == 4 then
+    crow.ii.pullup(true)
+    crow.ii.jf.mode(1)
+  else crow.ii.jf.mode(0)
   end
 end
 
@@ -395,7 +409,7 @@ end
 
 function randomize_cmd_sequence()
   for i = 1, 16 do
-    cmd_sequence[i] = math.random(COMMANDS)
+    cmd_sequence[i] = math.random(COMMANDS) -- TODO: create table where command num can be removed/inserted: cmd_sequence[i] = cmd_table[math.random(#cmd_table)]
   end
 end
 
@@ -415,6 +429,12 @@ function all_notes_off()
     m:note_off(a, nil, midi_channel)
   end
   active_notes = {}
+end
+
+function set_vel_range()
+  local range = params:get("midi_vel_range")
+  velo_l = util.clamp(vel_val - range, 1, 127)
+  velo_u = util.clamp(vel_val + range, 1, 127)
 end
 
 function clock.transport.start()
@@ -666,12 +686,9 @@ end
 
 ------------------------ save and load files -------------------------
 
--- labels for filename generation. must be file safe chars!
-local fn_label = {"o", "O", "-", "+", "P", "N", "Q", "E", "W", "M", "d", "D", "s", "S", "f", "F", "v", "V", "1", "2", "3", "4", "5"}
-
 function gen_seq_filename()
   -- more vowel combos increases name variety
-  vowels = {"a", "e", "i", "o", "u", "y", "hi", "ae", "ou"}
+  vowels = {"a", "e", "i", "o", "u", "y", "hi", "ae", "ou", "oe"}
   fn = ""
   while fn == "" or util.file_exists(norns.state.data..fn..".seq") do
     for i = 1, 4 do fn = fn .. string.sub(description[cmd_sequence[math.random(16)]], 0, 1)..vowels[math.random(#vowels)] end
@@ -685,6 +702,8 @@ function save_sequece()
   function(save_mode) textentry.enter(function(new_fn) seq_save(new_fn,save_mode) end,
   gen_seq_filename(), "Save sequence as ...") end)
 end
+
+-- !!! cmd labels seq_save must be file safe characters !!! --
 
 function seq_save(fn, mode)
   local file, err = io.open(norns.state.data..fn..".seq", "w+")
@@ -727,7 +746,7 @@ function seq_load(fn)
       load_note_pattern(loading_string)
     elseif seq_header == "SCALE" then
       -- set scale
-      scaleGroup = tonumber(loading_string)
+      params:set("scale", tonumber(loading_string))
     elseif seq_header == "ROOT" then
       -- set root note
       params:set("root_note", tonumber(loading_string) + 40)
@@ -744,9 +763,9 @@ function load_cmd_seq(loading_seq)
   loading_seq = loading_seq .. string.rep("<", STEPS-#loading_seq)
   -- and split into a table of chars
   new_cmd_sequence = {}
-  loading_seq:gsub(".",function(chr)
+  loading_seq:gsub(".", function(chr)
     -- Find the index of each step of the cmd sequence and insert into the current seqence
-    action = tab.key(label,chr) or NOT_FOUND_ACTION
+    action = tab.key(label, chr) or NOT_FOUND_ACTION
     table.insert(new_cmd_sequence,action)
   end)
   -- replace current sequence with laoded sequence
@@ -763,7 +782,7 @@ function load_note_pattern(note_string)
   new_note_pattern = {}
   note_string:gsub("([^,]+)", function(read_note)
     print("Read NOTE:"..read_note)
-    table.insert(new_note_pattern,tonumber(read_note) + offset)
+    table.insert(new_note_pattern, tonumber(read_note) + offset)
   end)
   note_pattern = new_note_pattern
 end
