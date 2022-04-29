@@ -1,70 +1,67 @@
 --
---  DUNES (v1.1.2)
---  Function sequencer
---  @olivier
---  //llllllll.co/t/dunes/24790
+-- DUNES (v2.0.0)
+-- function sequencer
 --
---  w/ contributions from
---  @justmat
---  @JaggedNZ
---  @sonocircuit
+-- @olivier & @sonocircuit
+-- llllllll.co/t/dunes/24790
 --
---  ~~~~ DUNES ~~~~~
+-- w/ contributions from
+-- @justmat
+-- @JaggedNZ
 --
---  E1: navigate pages
+-- ~~~~~~~ QUICKSTART ~~~~~~~
 --
---  PAGE 1:
---  E2: navigate to step
---  E3: select command
---  K1 [hold]: ignore command
---  K1 [hold] + E1: change note
---  K1 [hold] + K2: reset position
---  K2: stop/start
---  K3: randomize commands
---  K3 [longpress]: reset all
---  K1 + K3: reset commands
+-- E1: navigate pages
 --
---  PAGE 2 & 3:
---  E2: change left parameter
---  E3: change right parameter
---  K2: toggle row
+-- PAGE 1:
+-- E2: navigate to step
+-- E3: select command
+-- K1 [hold]: ignore command
+-- K1 [hold] + E2: change note
+-- K2: stop/start
+-- K1 [hold] + K2: reset position
+-- K3: randomize commands
+-- K1 [hold] + K3: reset commands
+-- K3 [longpress]: reset all
 --
---  PAGE 4:
---  E2: navigate list
+-- PAGE 2 & 3:
+-- E2: change left parameter
+-- E3: change right parameter
+-- K2: toggle row
+--
+-- PAGE 4:
+-- E2: navigate list
 --
 
 engine.name = "Passersby"
-Passersby = include "passersby/lib/passersby_engine"
+synth = include "passersby/lib/passersby_engine"
+delay = include("lib/dunes_delay")
 
-hs = include("lib/dunes_hs")
-
--- The following core libs are used to implement save and load features.
 local textentry = require "textentry"
 local fileselect = require "fileselect"
 local listselect = require "listselect"
-
+local tab = require "tabutil"
 local mu = require "musicutil"
+
+local g = grid.connect()
+local alt = false
 
 local m = midi.connect()
 local midi_channel = 1
 
-local ControlSpec = require "controlspec"
-local Formatters = require "formatters"
-
-local DUNES_DATA_PATH = _path.data.."dunes/"
-
-local pages = {"SEQUENCE", "DELAY PARAMETERS", "ENGINE PARAMETERS", "COMMAND REFERENCE"}
+local pages = {"SEQUENCE", "DELAY PARAMETERS", "SYNTH PARAMETERS", "COMMAND REFERENCE"}
 local output_options = {"off", "midi", "crow 1+2", "crow ii JF"}
 local active_notes = {}
+local scale_names = {}
+local scale_name = 1
+local scale_notes = {}
+local root = 1
 
 local position = 1
 local pageNum = 1
 local lineNum = 0
 local edit = 1
 local STEPS = 16
-local cmd_sequence = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
-local scaleGroup = 1
-local noteSel = 1
 
 local vel_val = 100
 local velocity = 100
@@ -74,6 +71,8 @@ local velo_l = 20
 local metronome = 1 -- 1 is off, 0 is on
 local transport_tog = 0
 local rate = 1
+local step_rate = 1
+local mult = {0.5, 1, 2, 4}
 local direction = 0
 
 local v8_std = 12
@@ -85,17 +84,34 @@ local env2_r = 0.05
 local KEYDOWN1 = 0
 local viewinfo = 0
 
-local note_pattern = {}
 local rests = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-
 local octave = 0
-local offset = 20
-local root = 0
 
 local verb = 0.05
-
 local pan = 0
 local delayRate = 1
+
+------------------------ commands and note tables -------------------------
+-- command tables
+local cmd_sequence = {}
+for i = 1, 8 do
+  cmd_sequence[i] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+end
+
+local cmd_pset = 1
+local cmd_pos = 1
+local cmd_select = false
+
+-- notes tables
+local note_pattern = {}
+for i = 1, 8 do
+  note_pattern[i] = {}
+  for j = 1, 16 do
+    table.insert(note_pattern[i], j, math.random(18))
+  end
+end
+
+local note_pset = 1
 
 ------------------------ commands and actions -------------------------
 
@@ -109,7 +125,7 @@ function tempoinc() rate = util.clamp(rate / 2, 0.125, 4) end
 function temporeset() rate = 1 end
 
 function rest() end
-function nNote() note_pattern[position] = scaleNotes[scaleGroup][math.random(#scaleNotes[scaleGroup])] + offset end
+function nNote() note_pattern[note_pset][position] = math.random(18) end
 function nPattern() newPattern() end
 
 function posRand() end -- keep function as placeholder
@@ -118,7 +134,7 @@ function posstart() end -- keep function as placeholder
 function dirForward() direction = 0 end
 function dirReverse() direction = 1 end
 
-function rand_command() cmd_sequence[math.random(16)] = math.random(33) end -- randomize command of random step
+function rand_command() cmd_sequence[cmd_pset][math.random(16)] = math.random(33) end -- randomize command of random step
 
 -- ENGINE COMMANDS
 function glidenote() glide = math.random() engine.glide(glide) end
@@ -201,11 +217,15 @@ function init()
   params:add_separator("DUNES")
 
   -- output settings
-  params:add_group("output settings", 2)
+  params:add_group("output settings", 3)
   params:add_option("audio_out", "audio output", {"off", "on"}, 2)
 
   params:add_option("ext_out", "external output", output_options, 1)
   params:set_action("ext_out", function(value) all_notes_off() set_jfmode(value) end)
+
+  params:add_option("clock_mult", "clock mult", {0.5, 1, 2, 4}, 2)
+  params:set_action("clock_mult", function(idx) step_rate = mult[idx] end)
+  params:hide("clock_mult")
 
   -- midi settings
   params:add_group("midi settings", 6)
@@ -220,7 +240,7 @@ function init()
 
   params:add_option("midi_trnsp", "midi transport", {"off", "send", "receive"}, 1)
 
-  params:add_option("vel_mode", "midi velocity", {"fixed", "random"}, 1)
+  params:add_option("vel_mode", "velocity mode", {"fixed", "random"}, 1)
 
   params:add_number("midi_vel_val", "velocity value", 1, 127, 100)
   params:set_action("midi_vel_val", function(value) vel_val = value set_vel_range() end)
@@ -230,30 +250,35 @@ function init()
 
   -- scale settings
   params:add_group("scale settings", 3)
-  params:add_option("scale", "scale", scaleNames, 1)
-  params:set_action("scale", function(value) scaleGroup = value end)
+
+  -- populate scale_names table
+  for i = 1, #mu.SCALES do
+    table.insert(scale_names, string.lower(mu.SCALES[i].name))
+  end
+
+  params:add_option("scale", "scale", scale_names, 1)
+  params:set_action("scale", function(val) build_scale() scale_name = val end)
 
   params:add_number("root_note", "root note", 24, 84, 48, function(param) return mu.note_num_to_name(param:get(), true) end)
-  params:set_action("root_note", function(value) root = value - 40 end)
+  params:set_action("root_note", function(val) build_scale() root = val end)
 
   params:add_option("view_note", "display notes", {"no", "yes"}, 1)
 
   -- save and load
-  --params:add_separator("save & load")
   params:add_group("save & load", 2)
   params:add_trigger("save_seq", "< Save Sequence")
   params:set_action("save_seq", function() save_sequece() end)
 
   params:add_trigger("load_seq", "> Load Sequence")
-  params:set_action("load_seq", function() fileselect.enter(norns.state.data, seq_load) end)
-
+  params:set_action("load_seq", function() fileselect.enter(norns.state.data.."sequences", seq_load) end) -- change directory: add subfolder
+  -- sound params
   params:add_separator("sound")
   -- delay params
   params:add_group("delay", 4)
-  hs.init()
+  delay.init()
   -- passersby params
-  params:add_group("passersby", 31)
-  Passersby.add_params()
+  params:add_group("synth", 31)
+  synth.add_params()
 
   -- crow params
   params:add_separator("crow")
@@ -279,11 +304,59 @@ function init()
 
   engineReset()
 
+  params:bang()
+
   step_clk = clock.run(count)
   transport()
 
-  norns.enc.sens(1, 4) -- test different settings
+  grid.add = draw_grid_connected
+
+  redrawtimer = metro.init(redraw_fun, 0.02, -1) -- refresh rate at 50hz
+  redrawtimer:start()
+  dirtygrid = true
+  dirtyscreen = true
+
+  norns.enc.sens(1, 5)
   norns.enc.sens(3, 4)
+  norns.enc.sens(3, 4)
+
+  -- pset callback
+  params.action_write = function(filename, name)
+    os.execute("mkdir -p "..norns.state.data.."presets/")
+    local note_presets = {}
+    local cmd_presets = {}
+    for i = 1, 8 do
+      note_presets[i] = {table.unpack(note_pattern[i])}
+      cmd_presets[i] = {table.unpack(cmd_sequence[i])}
+    end
+    tab.save(note_presets, norns.state.data.."presets/"..name.."_note_presets.data")
+    tab.save(cmd_presets, norns.state.data.."presets/"..name.."_cmd_presets.data")
+    print("finished writing '"..filename.."' as '"..name.."'")
+  end
+
+  params.action_read = function(filename)
+    local loaded_file = io.open(filename, "r")
+    if loaded_file then
+      io.input(loaded_file)
+      local pset_id = string.sub(io.read(), 4, -1)
+      io.close(loaded_file)
+      -- load note patterns
+      note_presets = tab.load(norns.state.data.."presets/"..pset_id.."_note_presets.data")
+      note_pattern = {}
+      for i = 1, 8 do
+        note_pattern[i] = {table.unpack(note_presets[i])}
+      end
+      -- load cmd sequences
+      cmd_presets = tab.load(norns.state.data.."presets/"..pset_id.."_cmd_presets.data")
+      cmd_sequence = {}
+      for i = 1, 8 do
+        cmd_sequence[i] = {table.unpack(cmd_presets[i])}
+      end
+      print("finished reading '"..filename.."'")
+    else
+      print("ERROR pset callback")
+    end
+  end
 
 end -- end of init
 
@@ -302,20 +375,20 @@ end
 
 function count()
   while true do
-    clock.sync(rate)
+    clock.sync(rate / step_rate)
     if running then
       if direction == 0 then
         position = position + 1
-        if cmd_sequence[position] == RND_STEP then
+        if cmd_sequence[cmd_pset][position] == RND_STEP then
           position = math.random(STEPS)
-        elseif(position > STEPS or cmd_sequence[position] == RESET_STEP) then
+        elseif(position > STEPS or cmd_sequence[cmd_pset][position] == RESET_STEP) then
           position = 1
         end
       else
         position = position - 1
-        if cmd_sequence[position] == RND_STEP then
+        if cmd_sequence[cmd_pset][position] == RND_STEP then
           position = math.random(STEPS)
-        elseif (position < 1 or cmd_sequence[position] == RESET_STEP) then
+        elseif (position < 1 or cmd_sequence[cmd_pset][position] == RESET_STEP) then
           position = 16
         end
       end
@@ -326,7 +399,8 @@ function count()
       trig_action()
       play_note()
       softcut.rate(1, delayRate)
-      redraw()
+      dirtyscreen = true
+      dirtygrid = true
     end
   end
 end
@@ -335,17 +409,17 @@ function trig_action()
   if KEYDOWN1 == 1 and position == edit then
     -- ignore action
   else
-    actions[cmd_sequence[position]]()
+    actions[cmd_sequence[cmd_pset][position]]()
   end
-  if actions[cmd_sequence[position]] ~= actions[GLIDE] then
+  if actions[cmd_sequence[cmd_pset][position]] ~= actions[GLIDE] then
     engine.glide(0)
   end
 end
 
 function play_note()
   all_notes_off()
-  if actions[cmd_sequence[position]] ~= actions[REST_ACTION] then
-    local note_num = note_pattern[position] + offset + octave + root
+  if actions[cmd_sequence[cmd_pset][position]] ~= actions[REST_ACTION] then
+    local note_num = scale_notes[note_pattern[note_pset][position]] + octave
     note_name = mu.note_num_to_name(note_num, true)
     -- engine output
     if params:get("audio_out") == 2 then
@@ -384,13 +458,13 @@ function set_jfmode(mode)
 end
 
 function updateRests()
-  for i = 1, #cmd_sequence do
-    if cmd_sequence[i] == REST_ACTION then rests[i] = 1 else rests[i] = 0 end
+  for i = 1, #cmd_sequence[cmd_pset] do
+    if cmd_sequence[cmd_pset][i] == REST_ACTION then rests[i] = 1 else rests[i] = 0 end
   end
 end
 
 function engineReset()
-  rate = 1
+  step_rate = 1
   engine.amp(0.5)
   rests = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
   newPattern()
@@ -403,13 +477,21 @@ end
 
 function newPattern()
   for i = 1, 16 do
-    table.insert(note_pattern, i, (scaleNotes[scaleGroup][math.random(#scaleNotes[scaleGroup])] + offset))
+    table.insert(note_pattern[note_pset], i, math.random(18))
   end
 end
 
 function randomize_cmd_sequence()
   for i = 1, 16 do
-    cmd_sequence[i] = math.random(COMMANDS) -- TODO: create table where command num can be removed/inserted: cmd_sequence[i] = cmd_table[math.random(#cmd_table)]
+    cmd_sequence[cmd_pset][i] = math.random(COMMANDS)
+  end
+end
+
+function build_scale()
+  scale_notes = mu.generate_scale_of_length(params:get("root_note"), params:get("scale"), 18)
+  local num_to_add = 18 - #scale_notes
+  for i = 1, num_to_add do
+    table.insert(scale_notes, scale_notes[18 - num_to_add])
   end
 end
 
@@ -424,17 +506,17 @@ function build_midi_device_list()
   end
 end
 
-function all_notes_off()
-  for _, a in pairs(active_notes) do
-    m:note_off(a, nil, midi_channel)
-  end
-  active_notes = {}
+function midi.add() -- this gets called when a MIDI device is registered
+  build_midi_device_list()
 end
 
-function set_vel_range()
-  local range = params:get("midi_vel_range")
-  velo_l = util.clamp(vel_val - range, 1, 127)
-  velo_u = util.clamp(vel_val + range, 1, 127)
+function midi.remove() -- this gets called when a MIDI device is removed
+  clock.run(
+    function()
+      clock.sleep(0.2)
+        build_midi_device_list()
+    end
+  )
 end
 
 function clock.transport.start()
@@ -452,26 +534,39 @@ function clock.transport.stop()
   end
 end
 
------------------------- user interface -------------------------
+function all_notes_off()
+  for _, a in pairs(active_notes) do
+    m:note_off(a, nil, midi_channel)
+  end
+  active_notes = {}
+end
+
+function set_vel_range()
+  local range = params:get("midi_vel_range")
+  velo_l = util.clamp(vel_val - range, 1, 127)
+  velo_u = util.clamp(vel_val + range, 1, 127)
+end
+
+------------------------ norns interface -------------------------
 
 function enc(n, d)
   if n == 1 and KEYDOWN1 == 0 then
     pageNum = util.clamp(pageNum + d, 1, #pages)
   end
   if pageNum == 1 then
-    if n == 1 and KEYDOWN1 == 1 then
-      noteSel = util.clamp(noteSel + d, 1, #scaleNotes[scaleGroup])
-      note_pattern[edit] = scaleNotes[scaleGroup][noteSel] + offset
-    elseif n == 2 then
+    if n == 2 and KEYDOWN1 == 1 then
+      note_pattern[note_pset][edit] = util.clamp(note_pattern[note_pset][edit] + d, 1, 18)
+    elseif n == 2 and KEYDOWN1 == 0 then
       edit = util.clamp(edit + d, 1, STEPS)
     elseif n == 3 then
-      cmd_sequence[edit] = util.clamp(cmd_sequence[edit] + d, 1, COMMANDS)
-      if cmd_sequence[edit] == REST_ACTION then
+      cmd_sequence[cmd_pset][edit] = util.clamp(cmd_sequence[cmd_pset][edit] + d, 1, COMMANDS)
+      if cmd_sequence[cmd_pset][edit] == REST_ACTION then
         rests[edit] = 1
       else
         rests[edit] = 0
       end
     end
+    dirtygrid = true
   elseif pageNum == 2 then
     if viewinfo == 0 then
       if n == 2 then
@@ -505,7 +600,7 @@ function enc(n, d)
       lineNum = util.clamp(lineNum + d, 0, COMMANDS - 5)
     end
   end
-  redraw()
+  dirtyscreen = true
 end
 
 down_time = 0
@@ -532,27 +627,28 @@ function key(n, z)
       else
         hold_time = util.time() - down_time
         if hold_time > 1 then
-          for i = 1, #cmd_sequence do
-            cmd_sequence[i] = 1
+          for i = 1, #cmd_sequence[cmd_pset] do
+            cmd_sequence[cmd_pset][i] = 1
           end
           engineReset()
         else
           if KEYDOWN1 == 0 then
             randomize_cmd_sequence()
           else
-            for i = 1, #cmd_sequence do
-              cmd_sequence[i] = 1
+            for i = 1, #cmd_sequence[cmd_pset] do
+              cmd_sequence[cmd_pset][i] = 1
             end
           end
         end
-        redraw()
+        dirtyscreen = true
+        dirtygrid = true
       end
     end
 elseif (pageNum == 2 or pageNum == 3) then
     if n == 2 then
       if z == 1 then
         viewinfo = 1 - viewinfo
-        redraw()
+        dirtyscreen = true
       end
     end
   end
@@ -560,8 +656,9 @@ end
 
 function drawMenu()
   for i = 1, #pages do
-    screen.move(i * 4 + 108, 8)
-    screen.line_rel(1, 0)
+    screen.move(i * 5 + 105, 8)
+    screen.line_rel(3, 0)
+    screen.line_width(3)
     if i == pageNum then
       screen.level(15)
     else
@@ -569,28 +666,30 @@ function drawMenu()
     end
     screen.stroke()
   end
-  screen.move(4, 10)
+  screen.move(1, 10)
   screen.level(6)
   screen.text(pages[pageNum])
 end
 
 function drawEdit()
-  for i = 1, #cmd_sequence do
+  for i = 1, #cmd_sequence[cmd_pset] do
     screen.level((i == edit) and 15 or 1)
+    screen.line_width(2)
     screen.move(i * 8 - 8 + 1, 60)
-    screen.text(label[cmd_sequence[i]])
+    screen.text(label[cmd_sequence[cmd_pset][i]])
   end
   drawNotePattern()
 end
 
 function drawNotePattern()
-  for i = 1, #cmd_sequence do
+  for i = 1, #cmd_sequence[cmd_pset] do
     --update rests
-    if cmd_sequence[i] == REST_ACTION then rests[i] = 1 else rests[i] = 0 end
+    if cmd_sequence[cmd_pset][i] == REST_ACTION then rests[i] = 1 else rests[i] = 0 end
     -- Draw note levels
-    screen.move(i * 8 - 8 + 1, 58 - ((note_pattern[i]) / 1.2) + 6)
+    screen.move(i * 8 - 8 + 1, 52 - ((note_pattern[note_pset][i]) * 2))
     if i == position then
       screen.level(15)
+      screen.line_width(2)
       screen.line_rel(0, 0)
     else
       if rests[i] == 1 then
@@ -684,14 +783,155 @@ function redraw()
   screen.update()
 end
 
------------------------- save and load files -------------------------
+------------------------ grid interface -------------------------
+
+function g.key(x, y, z)
+  -- alt key
+  if x == 16 and y == 8 then
+    alt = z == 1 and true or false
+  end
+  -- press keys then do stuff
+  if z == 1 then
+    -- transport key
+    if x == 1 and y == 8 then
+      metronome = 1 - metronome
+      transport()
+    end
+    -- set position
+    if alt and y == 4 then
+      position = x
+    end
+    -- set commands
+    if y == 4 and cmd_select then
+      cmd_sequence[cmd_pset][x] = cmd_pos
+    end
+    -- set cmd_pos
+    if (y == 1 or y == 2) then
+      local n = (y - 1) * 16
+      cmd_select = true
+      cmd_pos = x + n
+    end
+    -- note pattern preset
+    if x > 2 and x < 7 then
+      local i = (x - 2)
+      if y == 6 then
+        if alt == true then
+          note_pattern[i] = {table.unpack(note_pattern[note_pset])}
+        elseif alt == false then
+          note_pset = i
+        end
+      elseif y == 7 then
+        if alt == true then
+          note_pattern[i + 4] = {table.unpack(note_pattern[note_pset])}
+        elseif alt == false then
+          note_pset = i + 4
+        end
+      end
+    end
+    -- cmd pattern preset
+    if x > 10 and x < 15 then
+      local i = (x - 10)
+      if y == 6 then
+        if alt == true then
+          cmd_sequence[i] = {table.unpack(cmd_sequence[cmd_pset])}
+          updateRests()
+        elseif alt == false then
+          cmd_pset = i
+        end
+      elseif y == 7 then
+        if alt == true then
+          cmd_sequence[i + 4] = {table.unpack(cmd_sequence[cmd_pset])}
+          updateRests()
+        elseif alt == false then
+          cmd_pset = i + 4
+        end
+      end
+    end
+    if y == 6 then
+      if x == 8 then direction = 1
+      elseif x == 9 then direction = 0
+      end
+    end
+  if x > 6 and x < 11 then
+    if y == 8 then
+      params:set("clock_mult", x - 6)
+    end
+  end
+  else -- end z == 1
+    if (y == 1 or y == 2) then
+      cmd_select = false
+    end
+  end
+  dirtygrid = true
+end
+
+function gridredraw()
+  g:all(0)
+  -- alt key
+  g:led(16, 8, 4)
+  if alt then g:led(16, 8, 15) end
+  -- transport key
+  g:led(1, 8, 4)
+  if metronome == 0 then g:led(1, 8, 15) end
+  -- cmd rows
+  local cmd_pos = cmd_sequence[cmd_pset][position]
+  for i = 1, 16 do
+    for j = 1, 2 do
+      g:led(i, j, 3)
+    end
+  end
+  if cmd_pos <= 16 then
+    g:led(cmd_pos, 1, 6)
+  elseif cmd_pos > 16 and cmd_pos < 33 then
+    g:led(cmd_pos - 16, 2, 6)
+  end
+  -- seq row
+  for i = 1, 16 do
+    g:led(i, 4, 2)
+  end
+  g:led(position, 4, 10)
+  -- direction
+  g:led(8, 6, direction == 1 and 10 or 4)
+  g:led(9, 6, direction == 0 and 10 or 4)
+  -- note pattern presets
+  for i = 3, 6 do
+    for j = 6, 7 do
+      g:led(i, j, 2)
+    end
+  end
+  if note_pset < 5 then
+    g:led(note_pset + 2, 6, 6)
+  else
+    g:led(note_pset - 2, 7, 6)
+  end
+  -- cmd pattern presets
+  for i = 11, 14 do
+    for j = 6, 7 do
+      g:led(i, j, 2)
+    end
+  end
+  if cmd_pset < 5 then
+    g:led(cmd_pset + 10, 6, 6)
+  else
+    g:led(cmd_pset - 10, 7, 6)
+  end
+  for i = 1, 4 do
+    g:led(i + 6, 8, 2)
+  end
+  g:led(params:get("clock_mult") + 6, 8, 8)
+  -- refresh
+  g:refresh()
+  redraw()
+end
+
+------------------------ save and load single patterns -------------------------
 
 function gen_seq_filename()
   -- more vowel combos increases name variety
-  vowels = {"a", "e", "i", "o", "u", "y", "hi", "ae", "ou", "oe"}
+  vowels = {"a", "e", "i", "o", "u", "y", "hi", "ae", "ou"}
   fn = ""
-  while fn == "" or util.file_exists(norns.state.data..fn..".seq") do
-    for i = 1, 4 do fn = fn .. string.sub(description[cmd_sequence[math.random(16)]], 0, 1)..vowels[math.random(#vowels)] end
+  while fn == "" or util.file_exists(norns.state.data.."sequences/"..fn..".seq") do -- change directory: add subfolder
+    for i = 1, 4 do fn = fn .. string.sub(description[cmd_sequence[cmd_pset][math.random(16)]], 0, 1)..vowels[math.random(#vowels)] end
     -- TODO eventually someone could use all possible combos and go into a permenant loop...
   end
   return fn
@@ -699,31 +939,34 @@ end
 
 function save_sequece()
   listselect.enter({"Save Command Sequence", "Save Note Pattern", "Save Both"},
-  function(save_mode) textentry.enter(function(new_fn) seq_save(new_fn,save_mode) end,
+  function(save_mode) textentry.enter(function(new_fn) seq_save(new_fn, save_mode) end,
   gen_seq_filename(), "Save sequence as ...") end)
+  os.execute("mkdir -p "..norns.state.data.."sequences/")
 end
 
 -- !!! cmd labels seq_save must be file safe characters !!! --
 
 function seq_save(fn, mode)
-  local file, err = io.open(norns.state.data..fn..".seq", "w+")
+  local file, err = io.open(norns.state.data.."sequences/"..fn..".seq", "w+") -- change directory: add subfolder
   if err then print("io err:"..err) return err end
   -- write command sequnce
   if mode == "Save Command Sequence" or mode == "Save Both" then
     seq = ""
-    for k, v in pairs(cmd_sequence) do seq = seq..label[v] end
+    for k, v in pairs(cmd_sequence[cmd_pset]) do seq = seq..label[v] end
     file:write("CMD:"..seq.."\n")
   end
-  -- write command sequnce
+  -- write note sequnce
   if mode == "Save Note Pattern" or mode == "Save Both" then
     -- first save the notes
     pattern = ""
     file:write("NOTES:")
-    file:write(tostring(note_pattern[1] - offset))
-    for i = 2, #note_pattern do file:write(","..tostring(note_pattern[i] - offset)) end
+    file:write(tostring(note_pattern[note_pset][1]))
+    for k = 2, #note_pattern[note_pset] do
+      file:write(","..tostring(note_pattern[note_pset][k]))
+    end
     file:write("\n")
     -- save the scale
-    file:write("SCALE:"..scaleGroup)
+    file:write("SCALE:"..scale_name)
     file:write("\n")
     -- save the root note
     file:write("ROOT:"..root)
@@ -749,7 +992,7 @@ function seq_load(fn)
       params:set("scale", tonumber(loading_string))
     elseif seq_header == "ROOT" then
       -- set root note
-      params:set("root_note", tonumber(loading_string) + 40)
+      params:set("root_note", tonumber(loading_string))
     else
       print("Error: Invalid sequence header "..(seq_header or "nil"))
     end
@@ -766,63 +1009,46 @@ function load_cmd_seq(loading_seq)
   loading_seq:gsub(".", function(chr)
     -- Find the index of each step of the cmd sequence and insert into the current seqence
     action = tab.key(label, chr) or NOT_FOUND_ACTION
-    table.insert(new_cmd_sequence,action)
+    table.insert(new_cmd_sequence, action)
   end)
   -- replace current sequence with laoded sequence
   if #new_cmd_sequence == STEPS then
-    cmd_sequence = new_cmd_sequence
+    cmd_sequence[cmd_pset] = {table.unpack(new_cmd_sequence)}
     updateRests()
+    print("command sequence loaded to slot "..cmd_pset)
   else
     print("Error: Sequence was not the correct length after parsing.")
   end
 end
 
 function load_note_pattern(note_string)
-  print("Read NOTE string:"..note_string)
+  --print("Read NOTE string:"..note_string)
   new_note_pattern = {}
   note_string:gsub("([^,]+)", function(read_note)
-    print("Read NOTE:"..read_note)
-    table.insert(new_note_pattern, tonumber(read_note) + offset)
+    table.insert(new_note_pattern, tonumber(read_note))
   end)
-  note_pattern = new_note_pattern
+  note_pattern[note_pset] = {table.unpack(new_note_pattern)}
+  print("note pattern loaded to slot "..note_pset)
 end
 
------------------------- scale tables -------------------------
+------------------------ redraw handlers and cleanup -------------------------
 
-scaleNotes = {
-  {0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31,33,35,36},
-  {0,2,3,5,7,8,10,12,14,15,17,19,20,22,24,26,27,29,31,32,34,36},
-  {0,2,3,5,7,9,10,12,14,15,17,19,21,22,24,26,27,29,31,33,34,36},
-  {0,1,3,5,7,8,10,12,13,15,17,19,20,22,24,25,27,29,31,32,34,36},
-  {0,2,4,6,7,9,11,12,14,16,18,19,21,23,24,26,28,30,31,33,35,36},
-  {0,2,4,5,7,9,10,12,14,16,17,19,21,22,24,26,28,29,31,33,34,36},
-  {0,3,5,7,10,12,15,17,19,22,24,27,29,31,34,36},
-  {0,2,4,7,9,12,14,16,19,21,24,26,28,31,33,36},
-  {0,2,5,7,10,12,14,17,19,22,24,26,29,31,34,36},
-  {0,3,5,8,10,12,15,17,20,22,24,27,29,32,34,36},
-  {0,2,5,7,9,12,14,17,19,21,24,26,29,31,33,36},
-  {0,1,3,6,7,8,11,12,13,15,18,19,20,23,24,25,27,30,31,32,35,36},
-  {0,1,4,6,7,8,11,12,13,16,18,19,20,23,24,25,28,30,31,32,35,36},
-  {0,1,4,6,7,9,11,12,13,16,18,19,21,23,24,25,28,30,31,33,35,36},
-  {0,1,4,5,7,8,11,12,13,16,17,19,20,23,24,25,28,29,31,32,35,36},
-  {0,1,4,5,7,9,10,12,13,16,17,19,21,22,24,25,28,29,31,33,35,36},
-}
+function redraw_fun()
+ if dirtygrid == true then
+   gridredraw()
+   dirtygrid = false
+ end
+ if dirtyscreen == true then
+   redraw()
+   dirtyscreen = false
+ end
+end
 
-scaleNames = {
-  "ionian",
-  "aeolian",
-  "dorian",
-  "phrygian",
-  "lydian",
-  "mixolydian",
-  "major_pent",
-  "minor_pent",
-  "shang",
-  "jiao",
-  "zhi",
-  "todi",
-  "purvi",
-  "marva",
-  "bhairav",
-  "ahirbhairav",
-}
+function draw_grid_connected()
+ dirtygrid = true
+ gridredraw()
+end
+
+function cleanup()
+  grid.add = function() end
+end
