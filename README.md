@@ -1,6 +1,6 @@
-# Dunes (v1.1.2)
+# Dunes (v2.0.0)
 Dunes is a function sequencer for Monome Norns
-by @olivier <br>
+by @olivier and @sonocircuit<br>
 llllllll.co/t/dunes/24790
 
 Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequencer for the creation of emergent patterns, timbres and textures. Commands – assigned per step in the bottom row of the EDIT page – modulate sequence, engine and softcut parameters.
