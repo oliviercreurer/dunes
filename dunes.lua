@@ -270,7 +270,7 @@ function init()
   params:set_action("save_seq", function() save_sequece() end)
 
   params:add_trigger("load_seq", "> Load Sequence")
-  params:set_action("load_seq", function() fileselect.enter(norns.state.data.."sequences", seq_load) end) -- change directory: add subfolder
+  params:set_action("load_seq", function() fileselect.enter(norns.state.data.."sequences", seq_load) end)
   -- sound params
   params:add_separator("sound")
   -- delay params
@@ -323,14 +323,15 @@ function init()
   -- pset callback
   params.action_write = function(filename, name)
     os.execute("mkdir -p "..norns.state.data.."presets/")
-    local note_presets = {}
-    local cmd_presets = {}
+    local pset_data = {}
+    pset_data.note_pset = note_pset
+    pset_data.cmd_pset = cmd_pset
     for i = 1, 8 do
-      note_presets[i] = {table.unpack(note_pattern[i])}
-      cmd_presets[i] = {table.unpack(cmd_sequence[i])}
+      pset_data[i] = {}
+      pset_data[i].notes = {table.unpack(note_pattern[i])}
+      pset_data[i].cmds = {table.unpack(cmd_sequence[i])}
     end
-    tab.save(note_presets, norns.state.data.."presets/"..name.."_note_presets.data")
-    tab.save(cmd_presets, norns.state.data.."presets/"..name.."_cmd_presets.data")
+    tab.save(pset_data, norns.state.data.."presets/"..name.."_pset.data")
     print("finished writing '"..filename.."' as '"..name.."'")
   end
 
@@ -340,21 +341,16 @@ function init()
       io.input(loaded_file)
       local pset_id = string.sub(io.read(), 4, -1)
       io.close(loaded_file)
-      -- load note patterns
-      note_presets = tab.load(norns.state.data.."presets/"..pset_id.."_note_presets.data")
-      note_pattern = {}
+      pset_data = tab.load(norns.state.data.."presets/"..pset_id.."_pset.data")
+      note_pset = pset_data.note_pset
+      cmd_pset = pset_data.cmd_pset
       for i = 1, 8 do
-        note_pattern[i] = {table.unpack(note_presets[i])}
+        note_pattern[i] = {table.unpack(pset_data[i].notes)}
+        cmd_sequence[i] = {table.unpack(pset_data[i].cmds)}
       end
-      -- load cmd sequences
-      cmd_presets = tab.load(norns.state.data.."presets/"..pset_id.."_cmd_presets.data")
-      cmd_sequence = {}
-      for i = 1, 8 do
-        cmd_sequence[i] = {table.unpack(cmd_presets[i])}
-      end
+      dirtygrid = true
+      dirtyscreen = true
       print("finished reading '"..filename.."'")
-    else
-      print("ERROR pset callback")
     end
   end
 
@@ -439,7 +435,7 @@ function play_note()
     -- crow output
     if params:get("ext_out") == 3 then
       crow.output[1].volts = ((note_num - 60) / v8_std)
-      crow.output[2].action = "{ to(0, 0), to(8, "..env1_a.."), to(0, "..env1_r..", 'exponential') }"
+      crow.output[2].action = "{ to(0, 0), to(8, "..env1_a.."), to(0, "..env1_r..", 'log') }"
       crow.output[2]()
     end
     -- jf output
@@ -947,7 +943,7 @@ end
 -- !!! cmd labels seq_save must be file safe characters !!! --
 
 function seq_save(fn, mode)
-  local file, err = io.open(norns.state.data.."sequences/"..fn..".seq", "w+") -- change directory: add subfolder
+  local file, err = io.open(norns.state.data.."sequences/"..fn..".seq", "w+")
   if err then print("io err:"..err) return err end
   -- write command sequnce
   if mode == "Save Command Sequence" or mode == "Save Both" then
