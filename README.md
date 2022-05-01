@@ -14,11 +14,11 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 **`enc2:`** navigate to step <br>
 **`enc3:`** select command <br>
 **`key1 [hold]:`** ignore command <br>
-**`key1 [hold] + E2:`** change note <br>
+**`key1 [hold] + enc2:`** change note <br>
 **`key2:`** stop/start <br>
-**`key1 [hold] + K2:`** reset position <br>
+**`key1 [hold] + key2:`** reset position <br>
 **`key3:`** randomize commands <br>
-**`key1 [hold] + K3:`** reset commands <br>
+**`key1 [hold] + key3:`** reset commands <br>
 **`key3 [longpress]:`** reset all <br>
 <br>
 **PAGE 2 & 3: DELAY and SYNTH PARAMETERS** <br>
