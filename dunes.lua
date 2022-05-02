@@ -1,5 +1,5 @@
 --
--- DUNES (v2.0.0)
+-- DUNES (v2.0.1)
 -- function sequencer
 --
 -- @olivier & @sonocircuit
@@ -61,7 +61,8 @@ local position = 1
 local pageNum = 1
 local lineNum = 0
 local edit = 1
-local STEPS = 16
+local seq_first = 1
+local seq_last = 16
 
 local vel_val = 100
 local velocity = 100
@@ -76,12 +77,14 @@ local mult = {0.5, 1, 2, 4}
 local direction = 0
 
 local v8_std = 12
+local env1_amp = 8
 local env1_a = 0
 local env1_r = 0.05
+local env2_amp = 8
 local env2_a = 0
 local env2_r = 0.05
 
-local KEYDOWN1 = 0
+local shift = false
 local viewinfo = 0
 
 local rests = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -112,6 +115,11 @@ for i = 1, 8 do
 end
 
 local note_pset = 1
+
+local held = 0
+local heldmax = 0
+local first = 0
+local second = 0
 
 ------------------------ commands and actions -------------------------
 
@@ -159,7 +167,7 @@ function rndvolt()
 end
 
 function crowenv()
-  crow.output[4].action = "{ to(0,0), to(8, "..env2_a.."), to(0, "..env2_r..") }"
+  crow.output[4].action = "{ to(0,0), to("..env2_amp..", "..env2_a.."), to(0, "..env2_r..") }"
   crow.output[4]()
 end
 
@@ -286,7 +294,10 @@ function init()
   params:add_option("v8_type", "out 1: v/oct type", {"1 v/oct", "1.2 v/oct"}, 1)
   params:set_action("v8_type", function(x) if x == 1 then v8_std = 12 else v8_std = 10 end end)
 
-  params:add_group("out 2: envelope", 2)
+  params:add_group("out 2: envelope", 3)
+  params:add_control("env1_amplitude", "amplitude", controlspec.new(0.1, 10, "lin", 0.1, 8, "v"))
+  params:set_action("env1_amplitude", function(value) env1_amp = value end)
+
   params:add_control("env1_attack", "attack", controlspec.new(0.00, 1, "lin", 0.01, 0.00, "s"))
   params:set_action("env1_attack", function(value) env1_a = value end)
 
@@ -295,7 +306,10 @@ function init()
 
   params:add_control("v_range", "out 3: rnd v-range", controlspec.new(1, 5, "lin", 0.1, 5, "v"))
 
-  params:add_group("out 4: envelope", 2)
+  params:add_group("out 4: envelope", 3)
+  params:add_control("env2_amplitude", "amplitude", controlspec.new(0.1, 10, "lin", 0.1, 8, "v"))
+  params:set_action("env2_amplitude", function(value) env2_amp = value end)
+
   params:add_control("env2_attack", "attack", controlspec.new(0.00, 4, "lin", 0.01, 0.00, "s"))
   params:set_action("env2_attack", function(value) env2_a = value end)
 
@@ -376,16 +390,16 @@ function count()
       if direction == 0 then
         position = position + 1
         if cmd_sequence[cmd_pset][position] == RND_STEP then
-          position = math.random(STEPS)
-        elseif(position > STEPS or cmd_sequence[cmd_pset][position] == RESET_STEP) then
-          position = 1
+          position = math.random(seq_first, seq_last)
+        elseif(position > seq_last or cmd_sequence[cmd_pset][position] == RESET_STEP) then
+          position = seq_first
         end
       else
         position = position - 1
         if cmd_sequence[cmd_pset][position] == RND_STEP then
-          position = math.random(STEPS)
-        elseif (position < 1 or cmd_sequence[cmd_pset][position] == RESET_STEP) then
-          position = 16
+          position = math.random(seq_first, seq_last)
+        elseif (position < seq_first or cmd_sequence[cmd_pset][position] == RESET_STEP) then
+          position = seq_last
         end
       end
       if params:get("midi_trnsp") == 2 and transport_tog == 0 then
@@ -402,7 +416,7 @@ function count()
 end
 
 function trig_action()
-  if KEYDOWN1 == 1 and position == edit then
+  if shift and position == edit then
     -- ignore action
   else
     actions[cmd_sequence[cmd_pset][position]]()
@@ -435,7 +449,7 @@ function play_note()
     -- crow output
     if params:get("ext_out") == 3 then
       crow.output[1].volts = ((note_num - 60) / v8_std)
-      crow.output[2].action = "{ to(0, 0), to(8, "..env1_a.."), to(0, "..env1_r..", 'log') }"
+      crow.output[2].action = "{ to(0, 0), to("..env1_amp..", "..env1_a.."), to(0, "..env1_r..", 'log') }"
       crow.output[2]()
     end
     -- jf output
@@ -502,11 +516,11 @@ function build_midi_device_list()
   end
 end
 
-function midi.add() -- this gets called when a MIDI device is registered
+function midi.add() -- midi add callback
   build_midi_device_list()
 end
 
-function midi.remove() -- this gets called when a MIDI device is removed
+function midi.remove() -- midi remove callback
   clock.run(
     function()
       clock.sleep(0.2)
@@ -546,14 +560,14 @@ end
 ------------------------ norns interface -------------------------
 
 function enc(n, d)
-  if n == 1 and KEYDOWN1 == 0 then
+  if n == 1 and not shift then
     pageNum = util.clamp(pageNum + d, 1, #pages)
   end
   if pageNum == 1 then
-    if n == 2 and KEYDOWN1 == 1 then
+    if n == 2 and shift then
       note_pattern[note_pset][edit] = util.clamp(note_pattern[note_pset][edit] + d, 1, 18)
-    elseif n == 2 and KEYDOWN1 == 0 then
-      edit = util.clamp(edit + d, 1, STEPS)
+    elseif n == 2 and not shift then
+      edit = util.clamp(edit + d, 1, 16)
     elseif n == 3 then
       cmd_sequence[cmd_pset][edit] = util.clamp(cmd_sequence[cmd_pset][edit] + d, 1, COMMANDS)
       if cmd_sequence[cmd_pset][edit] == REST_ACTION then
@@ -602,14 +616,14 @@ end
 down_time = 0
 
 function key(n, z)
-  if n == 1 then KEYDOWN1 = z end
+  if n == 1 then shift = z == 1 and true or false end
   if pageNum == 1 then
     if n == 2 then
       if z == 1 then
-        if KEYDOWN1 == 0 then
+        if not shift then
           metronome = 1 - metronome
           transport()
-        elseif KEYDOWN1 == 1 then
+        elseif shift then
           if direction == 0 then
             position = 16
           elseif direction == 1 then
@@ -628,7 +642,7 @@ function key(n, z)
           end
           engineReset()
         else
-          if KEYDOWN1 == 0 then
+          if not shift then
             randomize_cmd_sequence()
           else
             for i = 1, #cmd_sequence[cmd_pset] do
@@ -786,6 +800,24 @@ function g.key(x, y, z)
   if x == 16 and y == 8 then
     alt = z == 1 and true or false
   end
+  -- seq_fist/last
+  if y == 4 then
+    if z == 1 and held then heldmax = 0 end
+    held = held + (z * 2 - 1)
+    if held > heldmax then heldmax = held end
+    if z == 1 then
+      if held == 1 then
+        first = x
+      elseif held == 2 then
+        second = x
+      end
+    elseif z == 0 then
+      if held == 1 and heldmax == 2 then
+        seq_first = math.min(first, second)
+        seq_last = math.max(first, second)
+      end
+    end
+  end
   -- press keys then do stuff
   if z == 1 then
     -- transport key
@@ -848,11 +880,11 @@ function g.key(x, y, z)
       elseif x == 9 then direction = 0
       end
     end
-  if x > 6 and x < 11 then
-    if y == 8 then
-      params:set("clock_mult", x - 6)
+    if x > 6 and x < 11 then
+      if y == 8 then
+        params:set("clock_mult", x - 6)
+      end
     end
-  end
   else -- end z == 1
     if (y == 1 or y == 2) then
       cmd_select = false
@@ -884,6 +916,9 @@ function gridredraw()
   -- seq row
   for i = 1, 16 do
     g:led(i, 4, 2)
+  end
+  for i = seq_first, seq_last do
+    g:led(i, 4, 4)
   end
   g:led(position, 4, 10)
   -- direction
@@ -998,8 +1033,8 @@ end
 
 function load_cmd_seq(loading_seq)
   -- make sure the sequnce is not too long or short and pad with "<"
-  loading_seq = string.sub(loading_seq, 0, STEPS)
-  loading_seq = loading_seq .. string.rep("<", STEPS-#loading_seq)
+  loading_seq = string.sub(loading_seq, 0, 16)
+  loading_seq = loading_seq .. string.rep("<", 16 - #loading_seq)
   -- and split into a table of chars
   new_cmd_sequence = {}
   loading_seq:gsub(".", function(chr)
@@ -1008,7 +1043,7 @@ function load_cmd_seq(loading_seq)
     table.insert(new_cmd_sequence, action)
   end)
   -- replace current sequence with laoded sequence
-  if #new_cmd_sequence == STEPS then
+  if #new_cmd_sequence == 16 then
     cmd_sequence[cmd_pset] = {table.unpack(new_cmd_sequence)}
     updateRests()
     print("command sequence loaded to slot "..cmd_pset)
@@ -1047,4 +1082,5 @@ end
 
 function cleanup()
   grid.add = function() end
+  crow.ii.jf.mode(0)
 end
