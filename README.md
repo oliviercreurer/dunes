@@ -1,4 +1,4 @@
-# Dunes (v2.0.0)
+# Dunes (v2.0.1)
 Dunes is a function sequencer for Monome Norns by @olivier. Extended version by @sonocircuit <br>
 llllllll.co/t/dunes/24790
 
