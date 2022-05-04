@@ -2,11 +2,11 @@
 Dunes is a function sequencer for Monome Norns by @olivier. Extended version by @sonocircuit <br>
 llllllll.co/t/dunes/24790
 
-Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequencer for the creation of emergent patterns, timbres and textures. Commands – assigned per step in the bottom row of the EDIT page – modulate sequence, engine and softcut parameters.
+Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequencer for the creation of emergent patterns, timbres and textures.
 
-## documentation:
+## Documentation:
 
-### norns
+### Norns
 
 **`enc1:`** navigate pages <br>
 <br>
@@ -31,11 +31,11 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 
 ---
 
-### grid
+### Grid
 
 ![grid layout](https://github.com/sonoCircuits/dunes/blob/master/assets/dunes%20grid%20layout-6.jpg)
 
-- press and hold any `command key` and press the according `sequence step` to assign the command to that step.
+- press and hold a `command key` and press the according `sequence step` to assign the command to that step.
 - press `alt` and a `sequence step` to jump to the according position
 - `base clk mult` sets the multiplication factor of the internal clock. 1 = 4 bar sequence.
 - `direction` sets the playback direction.
@@ -61,7 +61,6 @@ __Sequence:__
 - `?` : Jump to random step
 - `}` : Forward direction
 - `{` : Reverse direction
-- `!` : Insert random command at random step
 
 __Passersby synth:__
 
@@ -86,3 +85,6 @@ __Softcut delay:__
 - `Z` : Freeze delay buffer
 - `z` : Unfreeze delay buffer
 
+__Other:__
+
+- `!` : Insert random command at random step
