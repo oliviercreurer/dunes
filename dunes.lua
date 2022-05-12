@@ -1,5 +1,5 @@
 --
--- DUNES (v2.0.1)
+-- DUNES (v2.0.2)
 -- function sequencer
 --
 -- @olivier & @sonocircuit
@@ -79,10 +79,10 @@ local direction = 0
 local v8_std = 12
 local env1_amp = 8
 local env1_a = 0
-local env1_r = 0.05
+local env1_d = 0.05
 local env2_amp = 8
 local env2_a = 0
-local env2_r = 0.05
+local env2_d = 0.05
 
 local shift = false
 local viewinfo = 0
@@ -167,7 +167,7 @@ function rndvolt()
 end
 
 function crowenv()
-  crow.output[4].action = "{ to(0,0), to("..env2_amp..", "..env2_a.."), to(0, "..env2_r..") }"
+  crow.output[4].action = "{ to(0,0), to("..env2_amp..", "..env2_a.."), to(0, "..env2_d..") }"
   crow.output[4]()
 end
 
@@ -301,8 +301,8 @@ function init()
   params:add_control("env1_attack", "attack", controlspec.new(0.00, 1, "lin", 0.01, 0.00, "s"))
   params:set_action("env1_attack", function(value) env1_a = value end)
 
-  params:add_control("env1_release", "release", controlspec.new(0.01, 1, "lin", 0.01, 0.05, "s"))
-  params:set_action("env1_release", function(value) env1_r = value end)
+  params:add_control("env1_decay", "decay", controlspec.new(0.01, 1, "lin", 0.01, 0.05, "s"))
+  params:set_action("env1_decay", function(value) env1_d = value end)
 
   params:add_control("v_range", "out 3: rnd v-range", controlspec.new(1, 5, "lin", 0.1, 5, "v"))
 
@@ -313,8 +313,8 @@ function init()
   params:add_control("env2_attack", "attack", controlspec.new(0.00, 4, "lin", 0.01, 0.00, "s"))
   params:set_action("env2_attack", function(value) env2_a = value end)
 
-  params:add_control("env2_release", "release", controlspec.new(0.01, 4, "lin", 0.01, 0.05, "s"))
-  params:set_action("env2_release", function(value) env2_r = value end)
+  params:add_control("env2_decay", "decay", controlspec.new(0.01, 4, "lin", 0.01, 0.05, "s"))
+  params:set_action("env2_decay", function(value) env2_d = value end)
 
   engineReset()
 
@@ -449,7 +449,7 @@ function play_note()
     -- crow output
     if params:get("ext_out") == 3 then
       crow.output[1].volts = ((note_num - 60) / v8_std)
-      crow.output[2].action = "{ to(0, 0), to("..env1_amp..", "..env1_a.."), to(0, "..env1_r..", 'log') }"
+      crow.output[2].action = "{ to(0, 0), to("..env1_amp..", "..env1_a.."), to(0, "..env1_d..", 'log') }"
       crow.output[2]()
     end
     -- jf output
