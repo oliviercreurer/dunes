@@ -33,7 +33,7 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 
 ### Grid
 
-![grid layout](https://github.com/sonoCircuits/dunes/blob/master/assets/dunes%20grid%20layout-6.jpg)
+![grid layout](https://github.com/sonoCircuits/dunes/blob/master/assets/gridlayout_dunes.jpg)
 
 - press and hold a `command key` and press the according `sequence step` to assign the command to that step.
 - press `alt` and a `sequence step` to jump to the according position
@@ -48,8 +48,8 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 ### Command List
 
 __Sequence:__
-- `<` : Octave up
-- `>` : Octave down
+- `<` : Octave down
+- `>` : Octave up
 - `O` : Random octave
 - `-` : Half tempo
 - `+` : Double tempo
@@ -73,6 +73,12 @@ __Passersby synth:__
 - `F` : Wave folds +
 - `v` : Reverb mix -
 - `V` : Reverb mix +
+
+__Crow:__
+
+- `R` : Random voltage output 3
+- `E` : Trigger AD envelope output 4
+
 
 __Softcut delay:__
 
