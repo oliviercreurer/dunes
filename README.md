@@ -6,7 +6,7 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 
 ## Documentation:
 
-[FULL DOCS AS PDF](https://duckduckgo.com)
+[FULL DOCS AS PDF](https://github.com/sonoCircuits/dunes/blob/master/assets/DUNES_USER%20GUIDE.pdf)
 
 ## Quickstart:
 
