@@ -547,7 +547,7 @@ function clock.transport.stop()
     if direction == 0 then
       position = seq_last
     elseif direction == 1 then
-      position = seq_fist
+      position = seq_first
     end
   end
   dirtygrid = true
@@ -636,7 +636,7 @@ function key(n, z)
           if direction == 0 then
             position = seq_last
           elseif direction == 1 then
-            position = seq_fist
+            position = seq_first
           end
         end
         dirtyscreen = true
@@ -912,16 +912,16 @@ function gridredraw()
   g:led(1, 8, 4)
   if metronome == 0 then g:led(1, 8, 15) end
   -- cmd rows
-  local cmd_pos = cmd_sequence[cmd_pset][position]
+  local cmd_drw = cmd_sequence[cmd_pset][position]
   for i = 1, 16 do
     for j = 1, 2 do
       g:led(i, j, 3)
     end
   end
-  if cmd_pos <= 16 then
-    g:led(cmd_pos, 1, 6)
-  elseif cmd_pos > 16 and cmd_pos < 33 then
-    g:led(cmd_pos - 16, 2, 6)
+  if cmd_drw <= 16 then
+    g:led(cmd_drw, 1, 6)
+  elseif cmd_drw > 16 and cmd_drw < 33 then
+    g:led(cmd_drw - 16, 2, 6)
   end
   -- seq row
   for i = 1, 16 do
