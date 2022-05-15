@@ -376,7 +376,7 @@ end -- end of init
 function transport()
   if metronome == 0 then
     running = true
-  else
+  elseif metronome == 1 then
     if params:get("midi_trnsp") == 2 then m:stop() transport_tog = 0 end
     running = false
     all_notes_off()
@@ -533,16 +533,24 @@ end
 function clock.transport.start()
   if params:get("midi_trnsp") == 3 then
     running = true
+    metronome = 0
   end
 end
 
 function clock.transport.stop()
   if params:get("midi_trnsp") == 3 then
     running = false
-    position = 16
     all_notes_off()
     loop_off()
+    metronome = 1
+    transport_tog = 0
+    if direction == 0 then
+      position = seq_last
+    elseif direction == 1 then
+      position = seq_fist
+    end
   end
+  dirtygrid = true
 end
 
 function all_notes_off()
@@ -626,11 +634,13 @@ function key(n, z)
           transport()
         elseif shift then
           if direction == 0 then
-            position = 16
+            position = seq_last
           elseif direction == 1 then
-            position = 1
+            position = seq_fist
           end
         end
+        dirtyscreen = true
+        dirtygrid = true
       end
     elseif n == 3 then
       if z == 1 then
@@ -651,9 +661,8 @@ function key(n, z)
             end
           end
         end
-        dirtyscreen = true
-        dirtygrid = true
       end
+      dirtyscreen = true
     end
 elseif (pageNum == 2 or pageNum == 3) then
     if n == 2 then
