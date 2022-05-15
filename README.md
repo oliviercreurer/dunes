@@ -6,6 +6,10 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 
 ## Documentation:
 
+[FULL DOCS AS PDF](https://duckduckgo.com)
+
+## Quickstart:
+
 ### Norns
 
 **`enc1:`** navigate pages <br>
@@ -28,20 +32,6 @@ Inspired by [spacetime](https://monome.org/docs/norns/study-3/), Dunes is a sequ
 <br>
 **PAGE 4: COMMAND LIST** <br>
 **`enc2:`** navigate command list <br>
-
----
-
-### Grid
-
-![grid layout](https://github.com/sonoCircuits/dunes/blob/master/assets/gridlayout_dunes.jpg)
-
-- press and hold a `command key` and press the according `sequence step` to assign the command to that step.
-- press `alt` and a `sequence step` to jump to the according position
-- `base clk mult` sets the multiplication factor of the internal clock. 1 = 4 bar sequence.
-- `direction` sets the playback direction.
-- `note pattern presets` selects the active note pattern.
-- `command sequence presets` selects the active command sequence.
-- press and hold `alt` and press a non-selected preset slot to copy the currently selected note pattern / command sequence to the according slot.
 
 ---
 
