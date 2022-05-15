@@ -34,13 +34,14 @@
 --
 
 engine.name = "Passersby"
+
 synth = include "passersby/lib/passersby_engine"
 delay = include("lib/dunes_delay")
 
 local textentry = require "textentry"
 local fileselect = require "fileselect"
 local listselect = require "listselect"
-local tab = require "tabutil"
+
 local mu = require "musicutil"
 
 local g = grid.connect()
